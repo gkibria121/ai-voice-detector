@@ -491,17 +491,17 @@ def apply_spectrogram_augmentation(spectrogram: np.ndarray,
     return spec
 
 
-def extract_feature(waveform: np.ndarray, feature_type: int = 0, sr: int = 16000):
+def extract_feature(waveform: np.ndarray, feature_type=0, sr: int = 16000):
     """
     Extract different features from waveform.
     
     Args:
         waveform: Audio waveform as numpy array
-        feature_type: 0=raw, 1=mel_spectrogram, 2=lfcc, 3=mfcc, 4=cqt
+        feature_type: int or list of ints. 0=raw, 1=mel_spectrogram, 2=lfcc, 3=mfcc, 4=cqt
         sr: Sample rate (default: 16000)
     
     Returns:
-        Feature representation as numpy array
+        Feature representation as numpy array (fused if multiple types)
     """
     # If input is multi-channel (e.g., stereo), convert to mono for feature extraction
     try:
@@ -510,16 +510,35 @@ def extract_feature(waveform: np.ndarray, feature_type: int = 0, sr: int = 16000
     except Exception:
         pass
 
+    # If feature_type is a list, extract each and concatenate (intermediate fusion)
+    if isinstance(feature_type, (list, tuple)):
+        features = []
+        for ft in feature_type:
+            feat = extract_feature(waveform, feature_type=ft, sr=sr)
+            features.append(feat)
+        # Align time axis for all features (axis=1), pad/crop as needed
+        min_time = min(f.shape[1] if f.ndim > 1 else f.shape[0] for f in features)
+        aligned = []
+        for f in features:
+            if f.ndim == 1:
+                # Expand dims for raw waveform
+                f = np.expand_dims(f[:min_time], axis=0)
+            else:
+                f = f[:, :min_time]
+            aligned.append(f)
+        fused = np.concatenate(aligned, axis=0)
+        return fused
+
     if feature_type == 0:
         # Raw waveform
         return waveform
-    
+
     if not LIBROSA_AVAILABLE:
         raise ImportError(
             "librosa is required for feature extraction. "
             "Install it with: pip install librosa"
         )
-    
+
     if feature_type == 1:
         # Mel-spectrogram
         mel_spec = librosa.feature.melspectrogram(
@@ -527,7 +546,7 @@ def extract_feature(waveform: np.ndarray, feature_type: int = 0, sr: int = 16000
         )
         mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
         return mel_spec_db
-    
+
     elif feature_type == 2:
         # ==========================
         # Linear Frequency Cepstral Coefficients (LFCC)
@@ -546,17 +565,17 @@ def extract_feature(waveform: np.ndarray, feature_type: int = 0, sr: int = 16000
         # Linear filterbank with evenly spaced filters in Hz
         freq_bins = n_fft // 2 + 1
         fft_freqs = np.linspace(0, sr / 2, freq_bins)
-        
+
         # Create triangular filters with linear spacing
         filter_freqs = np.linspace(0, sr / 2, n_filters + 2)
         filterbank = np.zeros((n_filters, freq_bins))
-        
+
         for i in range(n_filters):
             # Left, center, right frequencies for triangular filter
             left = filter_freqs[i]
             center = filter_freqs[i + 1]
             right = filter_freqs[i + 2]
-            
+
             # Create triangular filter
             for j, freq in enumerate(fft_freqs):
                 if left <= freq <= center:
@@ -574,14 +593,14 @@ def extract_feature(waveform: np.ndarray, feature_type: int = 0, sr: int = 16000
         lfcc = dct(log_S, type=2, axis=0, norm='ortho')[:n_lfcc]
 
         return lfcc
-    
+
     elif feature_type == 3:
         # Mel-Frequency Cepstral Coefficients (MFCC)
         mfcc = librosa.feature.mfcc(
             y=waveform, sr=sr, n_mfcc=13, n_fft=512, hop_length=160
         )
         return mfcc
-    
+
     elif feature_type == 4:
         # Constant-Q Transform (CQT)
         cqt = librosa.cqt(
@@ -589,7 +608,7 @@ def extract_feature(waveform: np.ndarray, feature_type: int = 0, sr: int = 16000
         )
         cqt_db = librosa.amplitude_to_db(np.abs(cqt), ref=np.max)
         return cqt_db
-    
+
     else:
         raise ValueError(
             f"Unknown feature_type: {feature_type}. "
