@@ -47,10 +47,15 @@ class AttentionFusion(nn.Module):
         fused = fused.view(B, T, D)
         return fused
 
-class FusionNet(nn.Module):
-    def __init__(self, in_shapes, embed_dim=128, n_classes=2):
+
+# For compatibility with main.py, expose as Model
+class Model(nn.Module):
+    def __init__(self, d_args):
         super().__init__()
-        # in_shapes: list of (channels, freq, time) for each feature
+        # d_args should contain: in_shapes, embed_dim, n_classes
+        in_shapes = d_args.get('in_shapes', [(1,128,200), (1,13,200), (1,84,200)])
+        embed_dim = d_args.get('embed_dim', 128)
+        n_classes = d_args.get('n_classes', 2)
         self.n_modalities = len(in_shapes)
         self.extractors = nn.ModuleList([
             FeatureCNN(ch, embed_dim) for (ch, _, _) in in_shapes
