@@ -69,8 +69,9 @@ class Model(nn.Module):
             nn.Linear(64, n_classes)
         )
 
-    def forward(self, xs):
+    def forward(self, xs, Freq_aug=False):
         # xs: list of tensors, each (B, C, F, T)
+        # Freq_aug is ignored for compatibility
         feats = [extractor(x) for extractor, x in zip(self.extractors, xs)]  # each (B, T, D)
         fused = self.fusion(feats)  # (B, T, D)
         pooled = self.pool(fused.transpose(1, 2)).squeeze(-1)  # (B, D)
