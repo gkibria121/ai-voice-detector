@@ -69,14 +69,15 @@ class Model(nn.Module):
             nn.Linear(64, n_classes)
         )
 
-    def forward(self, xs, Freq_aug=False):
+    def forward(self, xs, **kwargs):
         # xs: list of tensors, each (B, C, F, T)
-        # Freq_aug is ignored for compatibility
+        # Accept and ignore any extra keyword arguments for compatibility
         feats = [extractor(x) for extractor, x in zip(self.extractors, xs)]  # each (B, T, D)
         fused = self.fusion(feats)  # (B, T, D)
         pooled = self.pool(fused.transpose(1, 2)).squeeze(-1)  # (B, D)
         out = self.classifier(pooled)
-        return out
+        # For compatibility with main.py, return (embeddings, logits)
+        return pooled, out
 
 # Example usage:
 # model = FusionNet([(1, 128, 200), (1, 13, 200), (1, 84, 200)])
