@@ -1,6 +1,6 @@
 """
-Dataset factory for creating appropriate dataset loaders based on dataset type.
-Supports ASVspoof2019, Fake-or-Real, and SceneFake datasets.
+Dataset factory for creating dataset loaders.
+This project is trimmed to support only the Fake-or-Real dataset.
 """
 
 import os
@@ -32,9 +32,7 @@ def _resize_freq(feat: np.ndarray, target_h: int) -> np.ndarray:
 
 # Dataset type mappings
 DATASET_TYPES = {
-    1: "ASVspoof2019",
-    2: "Fake-or-Real", 
-    3: "SceneFake"
+    1: "Fake-or-Real",
 }
 
 
@@ -85,10 +83,10 @@ def get_num_workers():
 def get_dataset_info(dataset_type: int) -> Dict:
     """
     Get dataset information including paths and structure.
-    
+
     Args:
-        dataset_type: 1=ASVspoof2019, 2=Fake-or-Real, 3=SceneFake
-        
+        dataset_type: 1=Fake-or-Real (only supported dataset in this trimmed repo)
+
     Returns:
         Dictionary with dataset configuration
     """
@@ -101,32 +99,24 @@ def get_dataset_info(dataset_type: int) -> Dict:
             # Fall through to built-in defaults on error
             pass
 
+    # First consult the registry for custom providers
+    if dataset_type in _DATASET_PROVIDERS:
+        return _DATASET_PROVIDERS[dataset_type]() if callable(_DATASET_PROVIDERS[dataset_type]) else _DATASET_PROVIDERS[dataset_type]
+
+    # This trimmed repository only supports Fake-or-Real (dataset id 1).
     if dataset_type == 1:
-        return {
-            "name": "ASVspoof2019",
-            "base_path": "./LA",
-            "has_protocols": True,
-            "track": "LA",
-            "file_format": "flac"
-        }
-    elif dataset_type == 2:
-        return {
-            "name": "Fake-or-Real",
-            "base_path": "./fake_or_real/for-2sec/for-2seconds",
-            "has_protocols": False,
-            "track": None,
-            "file_format": "wav"
-        }
-    elif dataset_type == 3:
-        return {
-            "name": "SceneFake",
-            "base_path": "./scenefake",
-            "has_protocols": False,
-            "track": None,
-            "file_format": "wav"
-        }
+        # The original implementation returns dataset-specific paths and info.
+        base = {}
+        base['name'] = 'Fake-or-Real'
+        base['id'] = 1
+        base['expected_layout'] = [
+            'training/real/', 'training/fake/',
+            'validation/real/', 'validation/fake/',
+            'testing/real/', 'testing/fake/'
+        ]
+        return base
     else:
-        raise ValueError(f"Unknown dataset type: {dataset_type}")
+        raise ValueError(f"Unsupported dataset_type={dataset_type}. This repository is configured to use only the Fake-or-Real dataset (use dataset id 1).")
 
 
 class Dataset_FakeOrReal_train(Dataset):
