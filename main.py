@@ -145,9 +145,9 @@ def main(args: argparse.Namespace) -> None:
     # Do NOT mutate args.dataset_version here; respect user's explicit choice.
     dataset_version = getattr(args, 'dataset_version', None)
 
-    # If using Fake-or-Real (`dataset_type == 2`) and the user did not provide
+    # If using Fake-or-Real (`dataset_type == 1`) and the user did not provide
     # a `--dataset_version`, default to version 3 (the 2-second clips).
-    if dataset_type == 2 and dataset_version is None:
+    if dataset_type == 1 and dataset_version is None:
         dataset_version = 3
         print("ℹ️  --dataset_version not provided for Fake-or-Real; defaulting to 3")
     
@@ -161,12 +161,9 @@ def main(args: argparse.Namespace) -> None:
     
     optim_config["epochs"] = config["num_epochs"]
     
-    # Track is only relevant for ASVspoof2019 dataset
-    if dataset_type == 1:
-        track = config.get("track", dataset_info.get("track", "LA"))
-        assert track in ["LA", "PA", "DF"], "Invalid track given"
-    else:
-        track = None
+    # This repository maps dataset id 1 to Fake-or-Real (not ASVspoof).
+    # No ASVspoof track handling is required; use `track=None`.
+    track = None
     
     if "eval_all_best" not in config:
         config["eval_all_best"] = "False"  # Default to False, use --eval_best to enable
@@ -246,44 +243,35 @@ def main(args: argparse.Namespace) -> None:
     # define database related paths
     output_dir = Path(args.output_dir)
     
-    # Use dataset-specific path or config path
+    # Map dataset id 1 to Fake-or-Real subfolders (version selects variant)
+    version_map = {
+        1: Path("fake_or_real/for-original/for-original"),
+        2: Path("fake_or_real/for-norm/for-norm"),
+        3: Path("fake_or_real/for-2sec/for-2seconds"),
+        4: Path("fake_or_real/for-rerec/for-rerecorded"),
+    }
+
     if dataset_type == 1:
-        database_path = Path(config.get("database_path", dataset_info["base_path"]))
-        prefix_2019 = "ASVspoof2019.{}".format(track)
-    elif dataset_type == 2:
-        # Map dataset_version to actual fake_or_real subfolders (these contain training/validation/testing)
-        # Numeric mapping is: 1=for-original, 2=for-norm, 3=for-2sec, 4=for-rerec
-        version_map = {
-            1: Path("fake_or_real/for-original/for-original"),
-            2: Path("fake_or_real/for-norm/for-norm"),
-            3: Path("fake_or_real/for-2sec/for-2seconds"),
-            4: Path("fake_or_real/for-rerec/for-rerecorded"),
-        }
+        # Default to 3 (2-second clips) when not provided
+        if dataset_version is None:
+            dataset_version = 3
+            print("ℹ️  --dataset_version not provided for Fake-or-Real; defaulting to 3")
 
-        if dataset_version is not None:
-            sel = dataset_version
-            selected_path = version_map.get(sel)
-            if selected_path is None:
-                print(f"⚠️  Unknown --dataset_version {sel}; available: {list(version_map.keys())}. Using dataset_info base_path")
-                database_path = Path(config.get("database_path", dataset_info["base_path"]))
-            else:
-                database_path = Path(selected_path)
+        selected_path = version_map.get(dataset_version)
+        if selected_path is None:
+            print(f"⚠️  Unknown --dataset_version {dataset_version}; available: {list(version_map.keys())}. Using dataset_info base_path if available.")
+            database_path = Path(config.get("database_path", dataset_info.get("base_path", ".")))
         else:
-            database_path = Path(config.get("database_path", dataset_info["base_path"]))
-
-        prefix_2019 = None
+            database_path = Path(selected_path)
     else:
-        database_path = Path(dataset_info["base_path"])
-        prefix_2019 = None
+        # Fallback: if other dataset ids are used, prefer config path then dataset_info
+        database_path = Path(config.get("database_path", dataset_info.get("base_path", ".")))
 
-    # ASVspoof protocol file paths (only meaningful when dataset_type == 1)
-    dev_trial_path = (database_path /
-                      "ASVspoof2019_{}_cm_protocols/{}.cm.dev.trl.txt".format(
-                          track, prefix_2019))
-    eval_trial_path = (
-        database_path /
-        "ASVspoof2019_{}_cm_protocols/{}.cm.eval.trl.txt".format(
-            track, prefix_2019))
+    prefix_2019 = None
+
+    # No ASVspoof protocol files are used in this trimmed repo (Fake-or-Real only).
+    dev_trial_path = None
+    eval_trial_path = None
 
     # define model related paths
     feature_type = config.get("feature_type", 0)
@@ -331,17 +319,12 @@ def main(args: argparse.Namespace) -> None:
     try:
         # Get a sample audio file for visualization (dataset-aware)
         sample_audio = None
-        file_ext = dataset_info['file_format']
+        # dataset_factory in this trimmed repo does not include 'file_format'
+        # Use 'wav' as a sensible default
+        file_ext = dataset_info.get('file_format', 'wav')
         
         if dataset_type == 1:
-            # ASVspoof2019
-            trn_database_path = database_path / "ASVspoof2019_{}_train/flac".format(track)
-            if trn_database_path.exists():
-                audio_files = list(trn_database_path.glob(f"*.{file_ext}"))
-                if audio_files:
-                    sample_audio = str(audio_files[0])
-        elif dataset_type == 2:
-            # Fake-or-Real
+            # Fake-or-Real (dataset id 1)
             trn_database_path = database_path / "training"
             if trn_database_path.exists():
                 # Try both fake and real subdirectories
@@ -560,32 +543,31 @@ def main(args: argparse.Namespace) -> None:
     print(f"  Batch Size:       {config['batch_size']}")
     print(f"{'='*60}\n")
     
-    if dataset_type == 1:
-        trn_loader, dev_loader, eval_loader = get_loader(
-            database_path, args.seed, config, device)
-    else:
-        # Inspect create_dataset_loaders signature and call with `device` only
-        # if it accepts that parameter. This avoids TypeError in environments
-        # where an older dataset_factory is present.
-        import inspect
-        try:
-            params = inspect.signature(create_dataset_loaders).parameters
-            if 'device' in params:
-                trn_loader, dev_loader, eval_loader = create_dataset_loaders(
-                    dataset_type, database_path, feature_type,
-                    config.get("random_noise", False), config["batch_size"], args.seed,
-                    data_subset=args.data_subset, device=device)
-            else:
-                trn_loader, dev_loader, eval_loader = create_dataset_loaders(
-                    dataset_type, database_path, feature_type,
-                    config.get("random_noise", False), config["batch_size"], args.seed,
-                    data_subset=args.data_subset)
-        except Exception:
-            # Fallback to calling without device if signature inspection fails
+    # Create dataset loaders via `create_dataset_loaders` (Fake-or-Real support)
+    import inspect
+    try:
+        params = inspect.signature(create_dataset_loaders).parameters
+        # dataset_factory.create_dataset_loaders in this workspace expects
+        # Fake-or-Real to be dataset_type==2. Map our dataset_type==1
+        # (Fake-or-Real) to factory_dataset_type=2 to avoid falling back
+        # to the legacy ASVspoof `get_loader` which expects ASVspoof layouts.
+        factory_dataset_type = 2 if dataset_type == 1 else dataset_type
+        if 'device' in params:
             trn_loader, dev_loader, eval_loader = create_dataset_loaders(
-                dataset_type, database_path, feature_type,
+                factory_dataset_type, database_path, feature_type,
+                config.get("random_noise", False), config["batch_size"], args.seed,
+                data_subset=args.data_subset, device=device)
+        else:
+            trn_loader, dev_loader, eval_loader = create_dataset_loaders(
+                factory_dataset_type, database_path, feature_type,
                 config.get("random_noise", False), config["batch_size"], args.seed,
                 data_subset=args.data_subset)
+    except Exception:
+        # If creating loaders via dataset_factory fails for any reason,
+        # raise a helpful error instead of silently falling back to the
+        # ASVspoof-specific `get_loader` which will look for protocol
+        # files that don't exist in Fake-or-Real layouts.
+        raise
 
     # evaluates pretrained model and exit script
     if args.eval:
@@ -608,12 +590,8 @@ def main(args: argparse.Namespace) -> None:
         model.load_state_dict(torch.load(model_path_to_load, map_location=device))
         print("Model loaded : {}".format(model_path_to_load))
         print("Start evaluation...")
-        if dataset_type == 1:
-            produce_evaluation_file(eval_loader, model, device,
-                                    eval_score_path, eval_trial_path)
-        else:
-            produce_evaluation_file_simple(eval_loader, model, device,
-                                          eval_score_path)
+        # Fake-or-Real uses simple evaluation output (no ASVspoof protocols)
+        produce_evaluation_file_simple(eval_loader, model, device, eval_score_path)
         evaluate_model(dataset_type, eval_score_path, database_path, config,
                       model_tag / "evaluation_results.txt")
         print("DONE.")
@@ -636,13 +614,10 @@ def main(args: argparse.Namespace) -> None:
     best_dev_eer = 100.0
     best_eval_eer = 100.0
     best_eval_acc = 0.0
-    # Only track t-DCF for ASVspoof2019 dataset
-    if dataset_type == 1:
-        best_dev_tdcf = 1.0
-        best_eval_tdcf = 1.
-    else:
-        best_dev_tdcf = None
-        best_eval_tdcf = None
+    # t-DCF is only applicable to ASVspoof evaluations; this trimmed repo
+    # uses Fake-or-Real and does not compute t-DCF. Leave as None.
+    best_dev_tdcf = None
+    best_eval_tdcf = None
     n_swa_update = 0  # number of snapshots of model to use in SWA
     f_log = open(model_tag / "metric_log.txt", "a")
     f_log.write("=" * 5 + "\n")
@@ -669,12 +644,8 @@ def main(args: argparse.Namespace) -> None:
         running_loss = train_epoch(trn_loader, model, optimizer, device,
                                    scheduler, config)
         print("\nValidating on development set...")
-        if dataset_type == 1:
-            produce_evaluation_file(dev_loader, model, device,
-                                    metric_path/"dev_score.txt", dev_trial_path)
-        else:
-            produce_evaluation_file_simple(dev_loader, model, device,
-                                          metric_path/"dev_score.txt")
+        # Use simple evaluation for Fake-or-Real (and other non-ASVspoof datasets)
+        produce_evaluation_file_simple(dev_loader, model, device, metric_path/"dev_score.txt")
         dev_eer, dev_tdcf, dev_acc = evaluate_model(
             dataset_type, metric_path/"dev_score.txt", database_path, config,
             metric_path/"dev_results_{:03d}epo.txt".format(epoch))
@@ -705,12 +676,8 @@ def main(args: argparse.Namespace) -> None:
 
             # do evaluation whenever best model is renewed
             if str_to_bool(config["eval_all_best"]):
-                if dataset_type == 1:
-                    produce_evaluation_file(eval_loader, model, device,
-                                            eval_score_path, eval_trial_path)
-                else:
-                    produce_evaluation_file_simple(eval_loader, model, device,
-                                                  eval_score_path)
+                # Use simple evaluation for non-ASVspoof datasets
+                produce_evaluation_file_simple(eval_loader, model, device, eval_score_path)
                 eval_eer, eval_tdcf, eval_acc = evaluate_model(
                     dataset_type, eval_score_path, database_path, config,
                     metric_path / "eval_results_{:03d}epo.txt".format(epoch))
@@ -771,11 +738,8 @@ def main(args: argparse.Namespace) -> None:
         print("Applying Stochastic Weight Averaging (SWA) - averaging {} model snapshots".format(n_swa_update))
         optimizer_swa.swap_swa_sgd()
         optimizer_swa.bn_update(trn_loader, model, device=device)
-    if dataset_type == 1:
-        produce_evaluation_file(eval_loader, model, device, eval_score_path,
-                                eval_trial_path)
-    else:
-        produce_evaluation_file_simple(eval_loader, model, device, eval_score_path)
+    # Final evaluation: use simple evaluation for Fake-or-Real
+    produce_evaluation_file_simple(eval_loader, model, device, eval_score_path)
     eval_eer, eval_tdcf, eval_acc = evaluate_model(
         dataset_type, eval_score_path, database_path, config,
         model_tag / "final_evaluation_results.txt")
@@ -887,18 +851,28 @@ def evaluate_model(dataset_type, cm_scores_file, database_path, config, output_f
     Returns:
         eer, metric2, accuracy (metric2 is t-DCF for ASVspoof, None for others)
     """
-    if dataset_type == 1:  # ASVspoof2019
-        return calculate_tDCF_EER(
-            cm_scores_file=cm_scores_file,
-            asv_score_file=database_path / config["asv_score_path"],
-            output_file=output_file
-        )
-    else:  # Fake-or-Real or other simple datasets
-        eer, acc = calculate_simple_eer_accuracy(
-            cm_scores_file=cm_scores_file,
-            output_file=output_file
-        )
-        return eer, None, acc  # No t-DCF for these datasets
+    # This trimmed repository supports Fake-or-Real (dataset id 1) and
+    # other simple datasets that do not use ASVspoof protocols or t-DCF.
+    # Always use the simple EER+Accuracy evaluator unless an explicit
+    # ASVspoof configuration is provided via `config["asv_score_path"]`.
+    if config is not None and "asv_score_path" in config and config.get("asv_score_path"):
+        # If ASV score path is provided, attempt t-DCF/EER evaluation.
+        try:
+            return calculate_tDCF_EER(
+                cm_scores_file=cm_scores_file,
+                asv_score_file=database_path / config["asv_score_path"],
+                output_file=output_file
+            )
+        except Exception:
+            # Fall back to simple evaluation on failure
+            pass
+
+    # Default: simple EER + accuracy evaluation for Fake-or-Real and others
+    eer, acc = calculate_simple_eer_accuracy(
+        cm_scores_file=cm_scores_file,
+        output_file=output_file
+    )
+    return eer, None, acc  # No t-DCF for these datasets
 
 
 def get_model(model_config: Dict, device: torch.device):
