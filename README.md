@@ -1,131 +1,85 @@
-# AI-Pipeline (ASVspoof / Anti-Spoofing)
+# AI Voice Detector — Quick Overview
 
-This repository provides a flexible training and evaluation pipeline for audio anti-spoofing research (ASVspoof 2019, Fake-or-Real, SceneFake). It includes model implementations, configs, training utilities, evaluation metrics, and visualization tools.
 
-**Highlights**
+This repository implements an end-to-end pipeline for detecting synthetic / deepfake audio and audio spoofing. It has been trimmed to support only the Fake-or-Real dataset (2-second clips). The project still provides model implementations, augmentation pipelines, and evaluation/visualization tools.
 
-- Models: LCNN (and LCNN Large), RawNet3, EfficientNet-B2 (with attention), SEResNet, SimpleCNN, and others in `models/`.
-- Config-driven experiments: see `config/` for ready-to-run setups.
-- Entry points: `main.py` (train/eval), `realtime.py` (demo), `visualize_results.py`.
-- Outputs stored under `exp_result/` per-run for reproducibility.
+For full, detailed documentation see: [DOCUMENTATION.md](DOCUMENTATION.md)
+
+## Highlights
+
+- Models: LCNN, LCNN Large, RawNet3, EfficientNet-B2 (+ attention), SEResNet, SimpleCNN, FusionNet, and more under `models/`.
+- Config-driven experiments: all hyperparameters and training options live in `config/`.
+- Entry points: `main.py` (train/eval), `visualize_results.py`, `realtime.py` (inference demo), and `notebook.ipynb` for example experiments.
+- Outputs: experiment artifacts (checkpoints, metrics, plots) are saved under `exp_result/` per-run.
 
 ## Quick Start
 
-1. Install dependencies:
+Install dependencies and create a virtualenv:
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-2. Download and prepare datasets (example for ASVspoof2019 LA):
+Download and prepare a dataset (example):
 
 ```bash
-python download_dataset.py
+# Example helper (adjust args for chosen dataset)
+python download_dataset.py --dataset 1
 ```
 
-3. Train a model with a config from `config/`:
+Train a model with a provided config:
 
 ```bash
-python main.py --config ./config/SimpleCNN.conf
+python main.py --config config/EfficientNetB2.conf --dataset 1 --feature_type 1 --epochs 20 --batch_size 32 --random_noise
 ```
 
-Evaluate a trained model:
+Evaluate a saved model:
 
 ```bash
-python main.py --eval --config ./config/SimpleCNN.conf
+python main.py --eval --eval_model_weights exp_result/<run>/weights/best.pth --dataset 1 --feature_type 1
 ```
 
-## Common Configs / Models
-
-- `config/LCNN.conf` / `config/LCNN_Large.conf` — LCNN models (spectrogram input)
-- `config/SEResNet.conf` — SEResNet (spectrogram input)
-- `config/EfficientNetB2.conf` / `config/EfficientNetB2_Attention.conf` — EfficientNet-B2 variants
-- `config/RawNet3.conf` — RawNet3 (raw waveform)
-
-## Datasets (flag `--dataset`)
-
-- `1`: ASVspoof2019 (LA / PA / DF tracks)
-- `2`: Fake-or-Real (2s clips)
-- `3`: SceneFake
-
-## Feature Types (`--feature_type`)
-
-- `0` — Raw waveform
-- `1` — Mel-spectrogram (128 bins)
-- `2` — LFCC
-- `3` — MFCC
-- `4` — CQT
-
-## Useful CLI flags
-
-- `--config`: Path to JSON config file in `config/`.
-- `--dataset`: Dataset id (1/2/3).
-- `--feature_type`: Feature id (0–4).
-- `--epochs`, `--batch_size`: Override config values.
-- `--random_noise`: Enable data augmentation (RIR, MUSAN-style noise, pitch shift, time stretch, SpecAugment).
-- `--weight_avg`: Enable SWA weight averaging.
-- `--eval_best`: Evaluate on test set when a new best model is found.
-- `--eval_model_weights`: Path to specific weights for evaluation.
-- `--feature_analysis`: Generate feature visualizations for a sample audio file.
-- `--cpu`: Force CPU mode.
-
-Example full command:
+View and compare metrics across runs:
 
 ```bash
-python main.py --config config/LCNN.conf --dataset 2 --feature_type 1 --epochs 20 --batch_size 32 --random_noise --weight_avg --eval_best
+python visualize_results.py --path "exp_result/*/metrics" --compare --output ./comparison_plots
 ```
 
-## Output structure (per run)
 
-After training, each experiment folder under `exp_result/` contains:
+## Features & Augmentations (Fake-or-Real focused)
 
-```
-exp_result/
-└── <dataset>_<track>_<model>_<flags>_ep<epochs>_bs<batch>_feat<feature>/
-    ├── config.conf              # Copy of the used config
-    ├── weights/                 # Model checkpoints (best.pth, swa.pth)
-    ├── metrics/                 # epoch_metrics.json, final_summary.json
-    ├── metric_log.txt
-    ├── evaluation_results.txt
-    └── events.out.*            # TensorBoard logs
-```
+- Feature types: `0`=raw waveform, `1`=mel-spec (128), `2`=LFCC, `3`=MFCC, `4`=CQT.
+- Augmentations (enable via `--random_noise`): RIR/reverb, MUSAN-style noise (babble/music/ambient), Gaussian noise (SNR 10–25 dB), pitch shift (±4 semitones), time stretch (0.85–1.15x), gain (±6 dB), low/high-pass filters, and SpecAugment.
 
-## Metrics
+The pipeline and documentation are focused on training and evaluating models on the Fake-or-Real dataset. Other dataset-specific evaluations (t-DCF / ASV tandem evaluation) have been removed.
 
-- EER — Equal Error Rate (primary metric for spoof detection)
-- Accuracy — classification accuracy
-- t-DCF — Tandem Detection Cost Function (ASVspoof evaluation)
+## Workflow Summary
 
-## Realtime demo
+1. Prepare dataset and verify file layout.
+2. Choose feature type and model config from `config/`.
+3. Run a quick smoke test (`--data_subset`) to verify configuration.
+4. Train with `--random_noise` for robustness and enable `--weight_avg` for SWA if desired.
+5. Monitor training via saved `metrics.json` and visualize with `visualize_results.py`.
+6. Evaluate final model(s) using `main.py --eval` or `evaluation.py` utilities for t-DCF/EER.
 
-Run `realtime.py` for minimal microphone/file-based inference. Check the top of that file for usage details and example flags.
+Full workflow and best practices are in [DOCUMENTATION.md](DOCUMENTATION.md).
 
-## Adding models
+## Outputs & Metrics
 
-To add a new model:
+- Checkpoints: saved under experiment `weights/` (e.g., `best.pth`, `swa.pth`).
+- Metrics: saved as JSON under the run's `metrics/` folder (epochs, dev/eval EER, t-DCF, accuracy).
+- Primary metrics: EER (primary), t-DCF (tandem evaluation for ASVspoof), accuracy (simple binary datasets).
 
-1. Implement your model class named `Model` inside `models/` (e.g., `models/MyModel.py`).
-2. Create a config file in `config/` referencing the model filename in `model_config.architecture`.
-3. Run `python main.py --config ./config/YourConfig.conf`.
+## Contributing
 
-## Tips & Common Issues
-
-- Out of memory: reduce `--batch_size` (e.g., 16 or 8).
-- Slow training: enable AMP / mixed-precision (configured in JSON), or use `--feature_type` spectrograms for smaller models.
-- Quick tests: use `--data_subset 0.1` to train on 10% of data.
-
-## Utilities
-
-- `download_dataset.py` — dataset download/preparation helper
-- `visualize_results.py` — generate comparison plots across experiment metrics
-- `run_experiments.sh` — example orchestration script
+Add models under `models/`, configs under `config/`, and open PRs describing experiments. Include unit tests where possible and document config changes in the experiment folder.
 
 ## License
 
-This repository includes an MIT-style license. See the `LICENSE` file for full terms.
+See the project's `LICENSE` file for terms.
 
-## Acknowledgements & References
+---
 
-## Acknowledgements & References
-
-This project builds on ASVspoof baselines and open-source implementations (t-DCF code, RawNet baselines). See project references and the original README/notebook for full citations.
+If you'd like, I can replace `README.md` with the full `DOCUMENTATION.md` content, split docs into `docs/` pages, or add per-model recommended configs. Which would you prefer?

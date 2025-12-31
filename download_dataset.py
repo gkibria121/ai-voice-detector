@@ -2,9 +2,7 @@
 Dataset download script for ASVspoof and other deepfake audio datasets.
 
 Usage:
-    python download_dataset.py --dataset 1  # Download ASVspoof 2019
-    python download_dataset.py --dataset 2  # Download Fake-or-Real dataset
-    python download_dataset.py --dataset 3  # Download SceneFake dataset
+    python download_dataset.py --dataset 1  # Download Fake-or-Real dataset
 """
 
 import argparse
@@ -103,19 +101,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Dataset Options:
-  1 - ASVspoof 2019 (awsaf49/asvpoof-2019-dataset)
-      Standard benchmark for audio spoofing detection
-      
-  2 - Fake-or-Real (mohammedabdeldayem/the-fake-or-real-dataset)
-      Binary classification dataset for fake vs real audio
-      
-  3 - SceneFake (mohammedabdeldayem/scenefake)
-      Scene-aware fake audio detection dataset
+    1 - Fake-or-Real (mohammedabdeldayem/the-fake-or-real-dataset)
+            Binary classification dataset for fake vs real audio
 
 Examples:
-  python download_dataset.py --dataset 1    # Download ASVspoof 2019
-  python download_dataset.py --dataset 2    # Download Fake-or-Real
-  python download_dataset.py --dataset 3    # Download SceneFake
+    python download_dataset.py --dataset 1    # Download Fake-or-Real
         """
     )
     
@@ -123,8 +113,8 @@ Examples:
         '--dataset',
         type=int,
         required=True,
-        choices=[1, 2, 3],
-        help='Dataset to download: 1=ASVspoof2019, 2=Fake-or-Real, 3=SceneFake'
+        choices=[1],
+        help='Dataset to download: 1=Fake-or-Real'
     )
     
     args = parser.parse_args()
@@ -133,12 +123,9 @@ Examples:
     print("DATASET DOWNLOADER")
     print("=" * 70 + "\n")
     
+    # In this trimmed repo Fake-or-Real is dataset id 1
     if args.dataset == 1:
-        download_asvspoof2019()
-    elif args.dataset == 2:
         download_fake_or_real()
-    elif args.dataset == 3:
-        download_scenefake()
     
     print("\n" + "=" * 70)
     print("Download Complete!")
