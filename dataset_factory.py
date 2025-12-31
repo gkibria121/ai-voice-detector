@@ -417,22 +417,28 @@ def create_dataset_loaders(dataset_type: int, base_path: Path, feature_type: int
         if data_subset < 1.0:
             import random
             random.seed(seed)
-            
-            # Sample train files
-            n_train = max(1, int(len(train_files) * data_subset))
-            sampled_train_files = random.sample(train_files, n_train)
-            train_files = sampled_train_files
-            
-            # Sample dev files
-            n_dev = max(1, int(len(dev_files) * data_subset))
-            sampled_dev_files = random.sample(dev_files, n_dev)
-            dev_files = sampled_dev_files
-            
-            # Sample eval files
-            n_eval = max(1, int(len(eval_files) * data_subset))
-            sampled_eval_files = random.sample(eval_files, n_eval)
-            eval_files = sampled_eval_files
-            
+
+            # Sample train files (only if available)
+            if len(train_files) > 0:
+                n_train = max(1, int(len(train_files) * data_subset))
+                n_train = min(n_train, len(train_files))
+                sampled_train_files = random.sample(train_files, n_train)
+                train_files = sampled_train_files
+
+            # Sample dev files (only if available)
+            if len(dev_files) > 0:
+                n_dev = max(1, int(len(dev_files) * data_subset))
+                n_dev = min(n_dev, len(dev_files))
+                sampled_dev_files = random.sample(dev_files, n_dev)
+                dev_files = sampled_dev_files
+
+            # Sample eval files (only if available)
+            if len(eval_files) > 0:
+                n_eval = max(1, int(len(eval_files) * data_subset))
+                n_eval = min(n_eval, len(eval_files))
+                sampled_eval_files = random.sample(eval_files, n_eval)
+                eval_files = sampled_eval_files
+
             print(f"\n📊 Using {data_subset*100:.1f}% data subset:")
             print(f"  Training: {len(train_files)} samples")
             print(f"  Validation: {len(dev_files)} samples")
