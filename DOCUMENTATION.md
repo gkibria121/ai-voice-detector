@@ -442,6 +442,145 @@ This section explains the methodological principles, design choices, and experim
 
 ---
 
+  ## CLI Reference (main.py and common flags)
+
+  This project exposes a single main train/eval entrypoint `main.py` with many useful runtime flags. The most commonly used flags (and their behavior) are listed here:
+
+  - `--config <path>`: Path to a JSON config file in `config/`. Required for training runs.
+  - `--dataset <int>`: Dataset id (1 = Fake-or-Real). Defaults to config value when omitted.
+  - `--dataset_version <int>`: Fake-or-Real version (1–4). Defaults to `3` for 2s clips when not provided.
+  - `--feature_type <int|csv>`: Feature type(s). Single int or comma-separated list (e.g., `1` or `1,2`). 0=raw, 1=mel, 2=lfcc, 3=mfcc, 4=cqt.
+  - `--epochs <int>`: Override `num_epochs` from config.
+  - `--batch_size <int>`: Override `batch_size` from config.
+  - `--random_noise`: Enable composed random augmentations (RIR, MUSAN-style noise, gaussian noise, pitch/time/gain/filters, SpecAugment).
+  - `--weight_avg`: Enable Stochastic Weight Averaging (SWA) during training.
+  - `--eval`: Run in evaluation mode (load weights then evaluate and exit).
+  - `--eval_model_weights <path>`: Explicit model weights path to use with `--eval`.
+  - `--eval_best`: When training, evaluate on the eval split whenever a new best dev model is found.
+  - `--data_subset <float>`: Fraction of each split to use (0.0-1.0) for quick smoke tests.
+  - `--seed <int>`: Random seed used for reproducibility.
+  - `--cpu`: Force CPU execution.
+  - `--feature_analysis`: Generate and save feature visualizations for a sample audio file (saved under the experiment folder).
+  - `--output_dir <path>`: Root location for experiment output (default: `exp_result/` when not provided).
+  - `--comment <str>`: Extra string appended to the experiment folder name.
+
+  Other entry scripts:
+  - `visualize_results.py`: Load saved `metrics.json` files and create comparisons and plots.
+  - `realtime.py`: A small inference/demo wrapper for streaming or low-latency evaluation.
+  - `download_dataset.py`: Utility to fetch dataset files (adjust flags for dataset id/version).
+
+  ## Config file schema (common keys)
+
+  Configs are JSON files under `config/`. Typical keys used by `main.py` include:
+
+  - `model_config`: dict or list describing model architecture and per-model parameters (e.g., `{"architecture": "EfficientNetB2", ...}`).
+  - `optim_config`: optimizer and scheduler related parameters (LR, optimizer type, scheduler, warmup, weight decay, etc.).
+  - `num_epochs`: integer epochs to train.
+  - `batch_size`: integer batch size used by DataLoaders.
+  - `feature_type`: default feature type (int or list).
+  - `random_noise`: `True|False` enabling augmentation.
+  - `model_path`: path to pretrained weights (used by `--eval` when no `--eval_model_weights` provided).
+  - `eval_output`: filename used for evaluation score file output inside the experiment folder (default configured in configs).
+  - `use_compile`: `True|False` whether to attempt `torch.compile`.
+  - `use_channels_last`: `True|False` whether to use channels_last memory format for CNNs.
+  - `weight_avg`: `True|False` toggle SWA.
+  - `cudnn_benchmark_toggle`, `cudnn_deterministic_toggle`: strings `'True'|'False'` to control cuDNN behavior.
+
+  Example minimal config (JSON):
+
+  ```json
+  {
+    "model_config": {"architecture": "LCNN", "num_classes": 2},
+    "optim_config": {"optimizer": "Adam", "lr": 1e-3},
+    "num_epochs": 20,
+    "batch_size": 32,
+    "feature_type": 1,
+    "random_noise": true,
+    "model_path": "",
+    "eval_output": "scores.txt"
+  }
+  ```
+
+  ## Feature extraction: shapes and details
+
+  - Raw waveform (`feature_type=0`): 1D array of samples (sample rate normalized to 16 kHz in this repo). Training pipelines pad/crop waveforms to ~64600 samples (~4s) via `pad_random`/`pad`.
+  - Mel-spectrogram (`feature_type=1`): `librosa.feature.melspectrogram` with `n_mels=128`, `n_fft=512`, `hop_length=160`, converted to dB. Output shape: (128, T) where T depends on audio length and hop.
+  - LFCC (`feature_type=2`): Custom linear filterbank → log → DCT yielding 13 coefficients. Output shape: (13, T).
+  - MFCC (`feature_type=3`): `n_mfcc=13`, produced via librosa. Output shape: (13, T).
+  - CQT (`feature_type=4`): `n_bins=84` CQT, amplitude→dB. Output shape: (84, T).
+
+  Multimodal features: Accept a list like `1,2` to build a stacked tensor shape `(C, H, T)` where `C` is number of modalities (stacked along channel axis). The Dataset and model fusion wrapper align frequency/time axes by padding/cropping.
+
+  Time dimension alignment: `target_steps = int(cut_samples / hop_length) + 1` where `cut_samples=64600` and `hop_length=160` in most pipelines. That results in deterministic T for training/eval padding logic.
+
+  ## Augmentation parameter ranges (implementations in `data_utils.py`)
+
+  - Gaussian noise (add_random_noise): SNR range used in `apply_augmentation` is uniform [10, 25] dB.
+  - Background noise (add_background_noise): noise factor in [0.01, 0.05].
+  - Reverberation: reverb factor in [0.3, 0.8]; simple echo 50ms delay.
+  - RIR simulation: RT60 sampled uniform in [0.1, 0.5]s, synthetic exponential decay used for convolution.
+  - MUSAN-style noise: simulated types `babble`, `music`, `ambient`; SNR ranges vary (music: 5–15 dB, babble: 10–20 dB, ambient: 15–25 dB).
+  - Pitch shift: semitone shift sampled uniformly in [-4, +4]. Requires `librosa`.
+  - Time stretch: rate sampled uniformly in [0.85, 1.15]. Requires `librosa`.
+  - Gain: dB in [-6, +6].
+  - Low/high-pass filters: low-pass cutoff in [2000, 6000] Hz; high-pass in [50, 300] Hz.
+  - SpecAugment: frequency mask up to 20 bins, time mask up to 50 frames, applied with p=0.5 each.
+
+  ## Data loader & dataset details
+
+  - Datasets built by `dataset_factory.create_dataset_loaders` create three `DataLoader`s: train, dev, eval. For Fake-or-Real the factory expects folder layout under the provided base path:
+
+    - `training/real/*.wav`
+    - `training/fake/*.wav`
+    - `validation/real/*.wav`
+    - `validation/fake/*.wav`
+    - `testing/real/*.wav`
+    - `testing/fake/*.wav`
+
+  - `data_subset` can be used for quick tests (random sampling with fixed seed).
+  - DataLoaders use `get_num_workers()` logic from `dataset_factory` to choose an appropriate number of workers (0–4) depending on environment; `seed_worker` and a `torch.Generator` seeded by the `--seed` value are used for reproducibility.
+
+  ## Evaluation outputs and score formats
+
+  - Evaluation score files: plain text files expected by helper evaluators with `(filename, label, score)` columns (the `evaluate_model` and `calculate_simple_eer_accuracy` helpers parse these). Labels: `real` (or 1) and `fake` (or 0) depending on dataset mapping.
+  - Primary reported metrics: EER (Equal Error Rate), Accuracy; t-DCF support is included in `evaluation.py` but requires ASV score files and ASVspoof protocols which are not in the trimmed Fake-or-Real folder.
+
+  ## Key code references (where to look for implementation details)
+
+  - CLI and training loop: [main.py](main.py)
+  - Feature extraction & augmentation implementations: [data_utils.py](data_utils.py)
+  - Dataset loaders and factory API: [dataset_factory.py](dataset_factory.py)
+  - Model definitions: [models/](models/) (per-architecture modules)
+  - Metrics, plotting, and visualization: [metrics.py](metrics.py), [visualize_results.py](visualize_results.py)
+  - Evaluation helpers (EER/t-DCF): [evaluation.py](evaluation.py)
+  - Utilities: [utils.py](utils.py) — optimizer creation, seeding helpers, and small convenience functions
+  - Interactive examples: [notebook.ipynb](notebook.ipynb)
+
+  ## Common commands (copy-paste)
+
+  ```bash
+  # Create env and install
+  python -m venv .venv
+  source .venv/bin/activate
+  pip install -r requirements.txt
+
+  # Quick smoke test (1% subset)
+  python main.py --config config/LCNN.conf --feature_type 1 --dataset 1 --epochs 2 --batch_size 8 --data_subset 0.01
+
+  # Full training (mel-spec, augmentation, SWA)
+  python main.py --config config/EfficientNetB2_Attention.conf --feature_type 1 --dataset 1 --epochs 20 --batch_size 32 --random_noise --weight_avg --seed 42
+
+  # Evaluate saved model
+  python main.py --eval --eval_model_weights exp_result/<run>/weights/best.pth --dataset 1 --feature_type 1
+
+  # Visualize multiple runs
+  python visualize_results.py --path "exp_result/*/metrics" --compare --output ./comparison_plots
+  ```
+
+  ---
+
+  If you'd like, I can split this larger documentation into a `docs/` directory (Markdown pages), or generate a concise `README.md` that links into this comprehensive document. I can also add per-model recommended configs and short examples for each model in `models/`.
+
 If you want, I can also:
 
 - Convert this to an expanded repository `README.md` or to a `docs/` folder with separate pages.
