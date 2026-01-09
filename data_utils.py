@@ -21,6 +21,10 @@ FEATURE_TYPES = {
     2: "lfcc",
     3: "mfcc",
     4: "cqt",  # Constant-Q Transform - best for fake vs real audio
+    5: "chroma",  # Chroma feature (pitch class profile)
+    6: "spectral_contrast", # Spectral contrast
+    7: "tonnetz", # Tonal centroid features
+    8: "prosodic",  # Prosodic features (F0, energy, speaking rate)
 }
 
 
@@ -608,6 +612,93 @@ def extract_feature(waveform: np.ndarray, feature_type=0, sr: int = 16000):
         )
         cqt_db = librosa.amplitude_to_db(np.abs(cqt), ref=np.max)
         return cqt_db
+
+    elif feature_type == 5:
+        # Chroma Short-Time Fourier Transform
+        # Captures harmonic content and pitch classes
+        chroma = librosa.feature.chroma_stft(y=waveform, sr=sr, n_fft=512, hop_length=160)
+        return chroma
+
+    elif feature_type == 6:
+        # Spectral Contrast
+        # Captures spectral peaks and valleys (texture)
+        contrast = librosa.feature.spectral_contrast(y=waveform, sr=sr, n_fft=512, hop_length=160)
+        return contrast
+
+    elif feature_type == 7:
+        # Tonnetz (Tonal Centroid Features)
+        # Captures harmonic relations
+        # Tonal features often require harmonic component, but we can extract from waveform directly
+        # or compute chroma first. librosa.feature.tonnetz can take 'y' or 'chroma'.
+        # We compute directly from y for simplicity.
+        tonnetz = librosa.feature.tonnetz(y=librosa.effects.harmonic(waveform), sr=sr)
+        # Tonnetz is usually small (6 dimensions), we might need to ensure it has time steps
+        # commensurate with other features if we want to fuse them.
+        # However, tonnetz output shape is (6, t).
+        return tonnetz
+
+    elif feature_type == 8:
+        # ==========================
+        # Prosodic Features
+        # ==========================
+        # Captures speaking rhythm, intonation, and stress patterns
+        # Often altered in TTS-generated deepfake audio
+        
+        n_fft = 512
+        hop_length = 160
+        
+        # 1. F0/Pitch Contour using pYIN (probabilistic YIN)
+        # Returns fundamental frequency estimates
+        f0, voiced_flag, voiced_probs = librosa.pyin(
+            waveform, 
+            fmin=librosa.note_to_hz('C2'),  # ~65 Hz
+            fmax=librosa.note_to_hz('C7'),  # ~2093 Hz
+            sr=sr,
+            hop_length=hop_length
+        )
+        # Replace NaN (unvoiced) with 0 for stability
+        f0 = np.nan_to_num(f0, nan=0.0)
+        # Normalize F0 to reasonable range
+        f0_normalized = f0 / 500.0  # Normalize by typical max F0
+        
+        # 2. Energy Envelope (RMS)
+        rms = librosa.feature.rms(y=waveform, frame_length=n_fft, hop_length=hop_length)[0]
+        # Normalize RMS
+        rms_normalized = rms / (np.max(rms) + 1e-8)
+        
+        # 3. Zero-Crossing Rate (correlates with speech/unvoiced sounds)
+        zcr = librosa.feature.zero_crossing_rate(waveform, frame_length=n_fft, hop_length=hop_length)[0]
+        
+        # 4. Speaking Rate Approximation via Onset Strength
+        # Onset strength envelope captures syllable/phoneme boundaries
+        onset_env = librosa.onset.onset_strength(y=waveform, sr=sr, hop_length=hop_length)
+        onset_normalized = onset_env / (np.max(onset_env) + 1e-8)
+        
+        # 5. Voiced Probability (from pYIN)
+        voiced_probs_clean = np.nan_to_num(voiced_probs, nan=0.0)
+        
+        # 6. Delta F0 (pitch dynamics/variation)
+        delta_f0 = np.diff(f0_normalized, prepend=f0_normalized[0])
+        
+        # 7. Energy dynamics (delta RMS)
+        delta_rms = np.diff(rms_normalized, prepend=rms_normalized[0])
+        
+        # Align all features to same length (use minimum)
+        min_len = min(len(f0_normalized), len(rms_normalized), len(zcr), 
+                      len(onset_normalized), len(voiced_probs_clean))
+        
+        # Stack all prosodic features: shape (7, time_steps)
+        prosodic_features = np.stack([
+            f0_normalized[:min_len],
+            delta_f0[:min_len],
+            rms_normalized[:min_len],
+            delta_rms[:min_len],
+            zcr[:min_len],
+            onset_normalized[:min_len],
+            voiced_probs_clean[:min_len]
+        ], axis=0)
+        
+        return prosodic_features
 
     else:
         raise ValueError(
