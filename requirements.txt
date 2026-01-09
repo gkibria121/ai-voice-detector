@@ -13,3 +13,5 @@ torchvision
 transformers
 sounddevice
 streamlit
+scikit-learn
+scipy
