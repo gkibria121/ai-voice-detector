@@ -12,3 +12,4 @@ pandas
 torchvision
 transformers
 sounddevice
+streamlit
