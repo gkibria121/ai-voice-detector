@@ -10,3 +10,5 @@ tensorboard
 seaborn
 pandas
 torchvision
+transformers
+sounddevice
