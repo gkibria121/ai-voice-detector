@@ -173,6 +173,185 @@ class IntegratedGradients:
         return integrated_grads.detach().cpu()
 
 
+class OcclusionSensitivity:
+    """
+    Compute Occlusion Sensitivity maps by masking parts of the input
+    and measuring the drop in target class probability.
+    """
+    def __init__(self, model, device='cpu'):
+        self.model = model
+        self.device = device
+    
+    def compute(self, x, target_class=None, window_shape=(8, 8), stride=4, baseline=0.0):
+        """
+        Compute occlusion sensitivity map.
+        
+        Args:
+            x: Input tensor (batch, 1, freqs, time) or (batch, 1, time)
+            target_class: Target class index
+            window_shape: Tuple (freq, time) for 2D or int for 1D
+            stride: Stride for sliding window
+            baseline: Value to replace occluded area with (default: 0)
+            
+        Returns:
+            Sensitivity map
+        """
+        self.model.eval()
+        x = x.to(self.device).clone()
+        
+        with torch.no_grad():
+            # Get original probability
+            _, orig_out = self.model(x)
+            if target_class is None:
+                target_class = orig_out.argmax(dim=1)
+            
+            orig_prob = F.softmax(orig_out, dim=1)[0, target_class].item()
+        
+        # Determine dimensionality
+        if x.ndim == 4: # (B, C, H, W) -> Spectrogram
+            h, w = x.shape[2], x.shape[3]
+            if isinstance(window_shape, int):
+                window_shape = (window_shape, window_shape)
+            win_h, win_w = window_shape
+            
+            if isinstance(stride, int):
+                stride_h = stride_w = stride
+            else:
+                stride_h, stride_w = stride
+                
+            heatmap = torch.zeros((h, w), device=self.device)
+            # Counts to average overlapping windows
+            counts = torch.zeros((h, w), device=self.device)
+            
+            # Sliding window
+            for i in range(0, h - win_h + 1, stride_h):
+                for j in range(0, w - win_w + 1, stride_w):
+                    # Mask input
+                    x_masked = x.clone()
+                    x_masked[:, :, i:i+win_h, j:j+win_w] = baseline
+                    
+                    # Forward pass
+                    with torch.no_grad():
+                        _, out = self.model(x_masked)
+                        prob = F.softmax(out, dim=1)[0, target_class].item()
+                    
+                    # Sensitivity = Drop in probability
+                    score = orig_prob - prob
+                    
+                    heatmap[i:i+win_h, j:j+win_w] += score
+                    counts[i:i+win_h, j:j+win_w] += 1
+            
+            # Average
+            heatmap = heatmap / (counts + 1e-8)
+            return heatmap.cpu()
+            
+        elif x.ndim == 3: # (B, C, L) -> Raw Audio
+            l = x.shape[2]
+            win_l = window_shape if isinstance(window_shape, int) else window_shape[0]
+            stride_l = stride if isinstance(stride, int) else stride[0]
+            
+            heatmap = torch.zeros((l), device=self.device)
+            counts = torch.zeros((l), device=self.device)
+            
+            for i in range(0, l - win_l + 1, stride_l):
+                x_masked = x.clone()
+                x_masked[:, :, i:i+win_l] = baseline
+                
+                with torch.no_grad():
+                    _, out = self.model(x_masked)
+                    prob = F.softmax(out, dim=1)[0, target_class].item()
+                    
+                score = orig_prob - prob
+                heatmap[i:i+win_l] += score
+                counts[i:i+win_l] += 1
+                
+            heatmap = heatmap / (counts + 1e-8)
+            return heatmap.cpu()
+            
+        return None
+
+
+class GradCAM:
+    """
+    Gradient-weighted Class Activation Mapping (Grad-CAM).
+    Visualizes which parts of the image/spectrogram were relevant directly 
+    from a specific convolutional layer.
+    """
+    def __init__(self, model, target_layer, device='cpu'):
+        self.model = model
+        self.target_layer = target_layer
+        self.device = device
+        self.gradients = None
+        self.activations = None
+        self._register_hooks()
+        
+    def _register_hooks(self):
+        def forward_hook(module, input, output):
+            self.activations = output
+            
+        def backward_hook(module, grad_in, grad_out):
+            self.gradients = grad_out[0]
+            
+        self.target_layer.register_forward_hook(forward_hook)
+        self.target_layer.register_backward_hook(backward_hook)
+        
+    def compute(self, x, target_class=None):
+        """
+        Compute Grad-CAM heatmap.
+        """
+        self.model.eval()
+        x = x.to(self.device).requires_grad_(True)
+        self.model.zero_grad()
+        
+        # Forward
+        _, output = self.model(x)
+        
+        if target_class is None:
+            target_class = output.argmax(dim=1)
+            
+        # Backward
+        target = output[0, target_class]
+        target.backward()
+        
+        # Generate heatmap
+        # GAP of gradients
+        pooled_gradients = torch.mean(self.gradients, dim=[0, 2])
+        if self.gradients.ndim == 4: # (B, C, H, W)
+             pooled_gradients = torch.mean(self.gradients, dim=[0, 2, 3])
+        
+        # Weight activations
+        activations = self.activations.detach() # (B, C, ...)
+        
+        if activations.ndim == 4: # Spectrogram (B, C, H, W)
+            for i in range(activations.shape[1]):
+                activations[:, i, :, :] *= pooled_gradients[i]
+                
+            heatmap = torch.mean(activations, dim=1).squeeze()
+            heatmap = F.relu(heatmap)
+            
+            # Normalize
+            if torch.max(heatmap) != 0:
+                heatmap /= torch.max(heatmap)
+                
+            # Resize
+            # We return the small heatmap, visualization will handle scaling
+            return heatmap.cpu()
+            
+        elif activations.ndim == 3: # Raw audio (B, C, L)
+            for i in range(activations.shape[1]):
+                activations[:, i, :] *= pooled_gradients[i]
+                
+            heatmap = torch.mean(activations, dim=1).squeeze()
+            heatmap = F.relu(heatmap)
+            
+            if torch.max(heatmap) != 0:
+                heatmap /= torch.max(heatmap)
+                
+            return heatmap.cpu()
+            
+        return None
+
+
 def visualize_attention(attention_map, save_path=None):
     """
     Visualize attention map as a heatmap.
@@ -229,6 +408,10 @@ def visualize_saliency(saliency_map, input_spectrogram=None, save_path=None):
         elif saliency_map.ndim == 3:
             saliency_map = saliency_map[0]
         
+        # Handle 1D saliency (e.g. raw audio) by expanding to 2D strip
+        if saliency_map.ndim == 1:
+            saliency_map = saliency_map[None, :] # (1, L)
+            
         fig, axes = plt.subplots(1, 2 if input_spectrogram is not None else 1, figsize=(12, 4))
         
         if input_spectrogram is not None:
@@ -238,6 +421,9 @@ def visualize_saliency(saliency_map, input_spectrogram=None, save_path=None):
                 input_spectrogram = input_spectrogram[0, 0]
             elif input_spectrogram.ndim == 3:
                 input_spectrogram = input_spectrogram[0]
+            # Handle 1D input spectrogram (raw audio)
+            if input_spectrogram.ndim == 1:
+                 input_spectrogram = input_spectrogram[None, :]
             
             axes[0].imshow(input_spectrogram, aspect='auto', origin='lower', cmap='magma')
             axes[0].set_title('Input Spectrogram')
