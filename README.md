@@ -7,7 +7,10 @@ For full, detailed documentation see: [DOCUMENTATION.md](DOCUMENTATION.md)
 
 ## Highlights
 
-- Models: LCNN, LCNN Large, RawNet3, EfficientNet-B2 (+ attention), SEResNet, SimpleCNN, FusionNet, and more under `models/`.
+- Models: LCNN, RawNet3, EfficientNet-B2, SEResNet, FusionNet, **Wav2Vec 2.0**, **HuBERT**, and **MobileViT**.
+- **Real-time**: Streaming audio detection pipeline for live microphone input.
+- **Advanced Features**: Prosodic features (pitch, energy) and SSL representations.
+- **Domain Adaptation**: Tools for cross-dataset generalization (CORAL, MMD, DANN).
 - Config-driven experiments: all hyperparameters and training options live in `config/`.
 - Entry points: `main.py` (train/eval), `visualize_results.py`, `realtime.py` (inference demo), and `notebook.ipynb` for example experiments.
 - Outputs: experiment artifacts (checkpoints, metrics, plots) are saved under `exp_result/` per-run.
@@ -50,7 +53,7 @@ python visualize_results.py --path "exp_result/*/metrics" --compare --output ./c
 
 ## Features & Augmentations (Fake-or-Real focused)
 
-- Feature types: `0`=raw waveform, `1`=mel-spec (128), `2`=LFCC, `3`=MFCC, `4`=CQT.
+- Feature types: `0`=raw waveform, `1`=mel-spec (128), `2`=LFCC, `3`=MFCC, `4`=CQT, **`8`=Prosodic (F0, Energy, ZCR)**.
 - Augmentations (enable via `--random_noise`): RIR/reverb, MUSAN-style noise (babble/music/ambient), Gaussian noise (SNR 10–25 dB), pitch shift (±4 semitones), time stretch (0.85–1.15x), gain (±6 dB), low/high-pass filters, and SpecAugment.
 
 The pipeline and documentation are focused on training and evaluating models on the Fake-or-Real dataset. Other dataset-specific evaluations (t-DCF / ASV tandem evaluation) have been removed.

@@ -247,7 +247,19 @@ The system supports **5 feature types** for representing audio:
   cqt_db = librosa.amplitude_to_db(np.abs(cqt), ref=np.max)
   ```
 
+### Feature Type 8: Prosodic Features
+- **Description**: High-level prosodic features capturing intonation and rhythm
+- **Components**: F0 (pitch), Energy (RMS), Zero-Crossing Rate, Voiced Probability, Speaking Rate
+- **Shape**: `(7, T)`
+- **Use Case**: Detecting TTS artifacts (unnatural pitch/rhythm)
+- **Processing**:
+  ```python
+  # Uses librosa.pyin for pitch tracking
+  features = extract_feature(waveform, feature_type=8)
+  ```
+
 ### Multimodal Feature Fusion
+
 
 The system supports combining multiple feature types:
 
@@ -418,7 +430,31 @@ Applied via `apply_spectrogram_augmentation()`:
 - `FeatureCNN`: Per-modality CNN feature extractor
 - `AttentionFusion`: Cross-modal attention mechanism
 
+### Wav2Vec 2.0 (`models/Wav2Vec2.py`)
+**Architecture**: Wrapper for HuggingFace `Wav2Vec2Model`.
+**Key Features**:
+- Self-supervised pre-training on large speech corpora
+- Contextualized representations from raw audio
+- Fine-tuning or frozen encoder modes
+**Config**: `config/Wav2Vec2.conf`
+
+### HuBERT (`models/HuBERT.py`)
+**Architecture**: Wrapper for HuggingFace `HubertModel`.
+**Key Features**:
+- Masked prediction of hidden units
+- Weighted layer sum for feature combination
+**Config**: `config/HuBERT.conf`
+
+### MobileViT (`models/MobileViT.py`)
+**Architecture**: Lightweight Transformer-CNN hybrid.
+**Key Features**:
+- ~2M parameters (vs >10M for others)
+- Mobile-friendly, efficient inference
+- Global processing via transformer blocks
+**Config**: `config/MobileViT.conf`
+
 ### Ensemble Models
+
 
 The system supports **ensemble learning** via configuration:
 
@@ -634,7 +670,59 @@ streamlit run app.py -- --config config/EfficientNetB2_Attention.conf --eval_mod
 
 ---
 
+---
+
+## Real-time Classification (`realtime.py`)
+
+The system includes a production-ready streaming pipeline for live audio detection.
+
+### Features
+- **Sliding Window**: Processes audio in overlapping chunks (e.g., 2s window, 0.5s step)
+- **EMA Smoothing**: Stabilizes predictions using Exponential Moving Average
+- **Low Latency**: Optimized for real-time feedback
+
+### Usage
+```bash
+# Microphone input
+python realtime.py --model_path weights.pth --config config.conf
+
+# File processing
+python realtime.py --file audio.wav --model_path weights.pth
+```
+
+---
+
+## Domain Adaptation (`domain_adaptation.py`)
+
+Tools for improving generalization across different datasets.
+
+**Methods**:
+- **CORAL**: Correlation Alignment (matches feature covariances)
+- **MMD**: Maximum Mean Discrepancy (kernel-based matching)
+- **DANN**: Domain Adversarial Neural Network (adversarial training)
+
+### Usage
+```python
+from domain_adaptation import DomainAdaptationTrainer
+trainer = DomainAdaptationTrainer(model, adaptation_method='coral')
+```
+
+---
+
+## Knowledge Distillation (`models/DistillationTrainer.py`)
+
+Compress large models (Teacher) into lightweight models (Student).
+
+### Usage
+```python
+from models.DistillationTrainer import distill_model
+distill_model(teacher, student, train_loader, ...)
+```
+
+---
+
 ## Configuration System
+
 
 ### Configuration File Structure
 
