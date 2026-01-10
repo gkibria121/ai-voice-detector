@@ -171,3 +171,37 @@ def set_seed(seed, config = None):
             torch.backends.cudnn.benchmark = str_to_bool(cudnn_benchmark)
         except ValueError:
             torch.backends.cudnn.benchmark = True
+
+
+def parse_feature_type(ft_arg):
+    """
+    Parses feature_type argument which can be:
+    - An integer (e.g., 0, 1)
+    - A string representing an integer (e.g., "1")
+    - A comma-separated string (e.g., "1,2,3")
+    - A list or tuple
+    
+    Returns:
+        int or list of ints
+    """
+    if ft_arg is None:
+        return 0
+    
+    if isinstance(ft_arg, (list, tuple)):
+        return [int(x) for x in ft_arg]
+    
+    if isinstance(ft_arg, str) and ',' in ft_arg:
+        try:
+            parsed = [int(x.strip()) for x in ft_arg.split(',')]
+            return parsed if len(parsed) > 0 else 0
+        except ValueError:
+            # Fallback if comma exists but it's not a list of ints
+            try:
+                return int(ft_arg)
+            except ValueError:
+                return ft_arg
+    
+    try:
+        return int(ft_arg)
+    except (ValueError, TypeError):
+        return ft_arg
