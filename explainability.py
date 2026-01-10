@@ -108,6 +108,67 @@ class GradientSaliency:
         return saliency.detach().cpu()
 
 
+class SmoothGrad:
+    """
+    SmoothGrad: Reduces noise in gradient-based saliency maps by averaging
+    gradients over multiple noisy samples of the input.
+    
+    This significantly improves visualization quality and removes high-frequency
+    noise that often appears in vanilla gradient saliency maps.
+    
+    Reference: Smilkov et al., "SmoothGrad: removing noise by adding noise"
+    """
+    def __init__(self, model, device='cpu', n_samples=50, noise_level=0.15):
+        """
+        Args:
+            model: The model to explain
+            device: Device to run on
+            n_samples: Number of noisy samples to average over (default: 50)
+            noise_level: Std dev of Gaussian noise as fraction of (max-min) (default: 0.15)
+        """
+        self.gradient_saliency = GradientSaliency(model, device)
+        self.model = model
+        self.device = device
+        self.n_samples = n_samples
+        self.noise_level = noise_level
+    
+    def compute_saliency(self, x, target_class=None):
+        """
+        Compute SmoothGrad saliency map.
+        
+        Args:
+            x: Input tensor (batch, *input_shape)
+            target_class: Class to compute gradients for. If None, uses predicted class.
+            
+        Returns:
+            Smoothed saliency map of same shape as input
+        """
+        # Determine noise scale based on input range
+        x_min = x.min()
+        x_max = x.max()
+        noise_scale = (x_max - x_min) * self.noise_level
+        
+        saliency_sum = None
+        
+        for i in range(self.n_samples):
+            # Add Gaussian noise
+            noise = torch.randn_like(x) * noise_scale
+            noisy_x = x + noise
+            
+            # Compute saliency for this noisy sample
+            saliency = self.gradient_saliency.compute_saliency(noisy_x, target_class)
+            
+            if saliency_sum is None:
+                saliency_sum = saliency
+            else:
+                saliency_sum += saliency
+        
+        # Average over all samples
+        smooth_saliency = saliency_sum / self.n_samples
+        
+        return smooth_saliency
+
+
 class IntegratedGradients:
     """
     Integrated Gradients attribution method.
