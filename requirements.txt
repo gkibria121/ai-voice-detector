@@ -15,3 +15,5 @@ sounddevice
 streamlit
 scikit-learn
 scipy
+hf_xet
+transformers
