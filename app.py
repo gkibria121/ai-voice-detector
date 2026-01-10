@@ -14,7 +14,7 @@ import streamlit as st
 
 def parse_args():
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--config", required=True, type=str)
+    parser.add_argument("--config", required=False, type=str, default=None)
     parser.add_argument("--eval_model_weights", required=False, type=str, default=None)
     # parse_known_args because Streamlit injects its own args
     args, _ = parser.parse_known_args()
@@ -121,6 +121,13 @@ def main():
 
     # Streamlit UI
     st.title("Audio Fake/Real Classifier")
+
+    if not args.config:
+        st.error("Missing configuration file! Please provide a config file using the `--config` argument.")
+        st.info("Example usage:")
+        st.code("streamlit run app.py -- --config path/to/config.conf --eval_model_weights path/to/weights.pth")
+        st.stop()
+
     st.markdown("Upload one or more audio files and click `Classify`.")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -134,13 +141,7 @@ def main():
         model, config = load_model(config_path, weights_path, device)
     except Exception as e:
         st.error(f"Failed to load model: {e}")
-        # Attempt to stop Streamlit execution when running via `streamlit run`.
-        try:
-            st.stop()
-        except Exception:
-            pass
-        # Ensure script exits when run as plain python
-        sys.exit(1)
+        st.stop()
 
     feature_type = config.get("feature_type", 0)
     sample_rate = config.get("sample_rate", 16000)
