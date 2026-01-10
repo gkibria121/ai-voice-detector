@@ -87,7 +87,7 @@ class GradientSaliency:
             Saliency map of same shape as input
         """
         self.model.eval()
-        x = x.to(self.device)
+        x = x.detach().to(self.device)
         x.requires_grad_(True)
         
         _, output = self.model(x)
@@ -194,12 +194,12 @@ class IntegratedGradients:
             Attribution map
         """
         self.model.eval()
-        x = x.to(self.device)
+        x = x.detach().to(self.device)
         
         if baseline is None:
             baseline = torch.zeros_like(x)
         else:
-            baseline = baseline.to(self.device)
+            baseline = baseline.detach().to(self.device)
         
         # Interpolate between baseline and input
         scaled_inputs = [baseline + (float(i) / steps) * (x - baseline) for i in range(steps + 1)]
@@ -361,7 +361,7 @@ class GradCAM:
         Compute Grad-CAM heatmap.
         """
         self.model.eval()
-        x = x.to(self.device).requires_grad_(True)
+        x = x.detach().to(self.device).requires_grad_(True)
         self.model.zero_grad()
         
         # Forward

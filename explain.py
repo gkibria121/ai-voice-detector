@@ -147,7 +147,7 @@ def find_gradcam_target_layer(model):
         
     return target_layer
 
-def run_attention(model, input_tensor, base_name, output_dir, device):
+def run_attention(model, input_tensor, base_name, output_dir, device, show_plots, save_plots):
     """Run attention extraction."""
     print("\n[1/6] Running Attention Extraction...")
     extractor = AttentionExtractor(model, device)
@@ -161,52 +161,71 @@ def run_attention(model, input_tensor, base_name, output_dir, device):
     print(f"  ✓ Extracted {len(maps)} attention maps")
     
     for i, attn_map in enumerate(maps):
-        save_path = os.path.join(output_dir, f"{base_name}_attn_layer{i}.png")
-        visualize_attention(attn_map, save_path=save_path)
-        print(f"    Saved: {save_path}")
+        if save_plots:
+            save_path = os.path.join(output_dir, f"{base_name}_attn_layer{i}.png")
+            visualize_attention(attn_map, save_path=save_path)
+            print(f"    Saved: {save_path}")
+        
+        if show_plots:
+            visualize_attention(attn_map, save_path=None)
         
     extractor.cleanup()
 
-def run_saliency(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class):
+def run_saliency(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class, show_plots, save_plots):
     """Run gradient saliency."""
     print("\n[2/6] Running Gradient Saliency...")
     saliency = GradientSaliency(model, device)
     target = None if target_class is None else torch.tensor([target_class], device=device)
     
     saliency_map = saliency.compute_saliency(input_tensor, target_class=target)
-    save_path = os.path.join(output_dir, f"{base_name}_saliency.png")
     
     vis_input = spectrogram_vis if spectrogram_vis is not None else input_tensor.detach().cpu().numpy()
-    visualize_saliency(saliency_map, input_spectrogram=vis_input, save_path=save_path)
-    print(f"  ✓ Saved: {save_path}")
+    
+    if save_plots:
+        save_path = os.path.join(output_dir, f"{base_name}_saliency.png")
+        visualize_saliency(saliency_map, input_spectrogram=vis_input, save_path=save_path)
+        print(f"  ✓ Saved: {save_path}")
+    
+    if show_plots:
+        visualize_saliency(saliency_map, input_spectrogram=vis_input, save_path=None)
 
-def run_smoothgrad(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class):
+def run_smoothgrad(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class, show_plots, save_plots):
     """Run SmoothGrad."""
     print("\n[3/6] Running SmoothGrad (this may take a moment)...")
     smoothgrad = SmoothGrad(model, device, n_samples=50, noise_level=0.15)
     target = None if target_class is None else torch.tensor([target_class], device=device)
     
     smooth_map = smoothgrad.compute_saliency(input_tensor, target_class=target)
-    save_path = os.path.join(output_dir, f"{base_name}_smoothgrad.png")
     
     vis_input = spectrogram_vis if spectrogram_vis is not None else input_tensor.detach().cpu().numpy()
-    visualize_saliency(smooth_map, input_spectrogram=vis_input, save_path=save_path)
-    print(f"  ✓ Saved: {save_path}")
+    
+    if save_plots:
+        save_path = os.path.join(output_dir, f"{base_name}_smoothgrad.png")
+        visualize_saliency(smooth_map, input_spectrogram=vis_input, save_path=save_path)
+        print(f"  ✓ Saved: {save_path}")
+    
+    if show_plots:
+        visualize_saliency(smooth_map, input_spectrogram=vis_input, save_path=None)
 
-def run_integrated_gradients(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class):
+def run_integrated_gradients(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class, show_plots, save_plots):
     """Run Integrated Gradients."""
     print("\n[4/6] Running Integrated Gradients...")
     ig = IntegratedGradients(model, device)
     target = None if target_class is None else torch.tensor([target_class], device=device)
     
     attr = ig.compute(input_tensor, target_class=target)
-    save_path = os.path.join(output_dir, f"{base_name}_integrated_gradients.png")
     
     vis_input = spectrogram_vis if spectrogram_vis is not None else input_tensor.detach().cpu().numpy()
-    visualize_saliency(attr, input_spectrogram=vis_input, save_path=save_path)
-    print(f"  ✓ Saved: {save_path}")
+    
+    if save_plots:
+        save_path = os.path.join(output_dir, f"{base_name}_integrated_gradients.png")
+        visualize_saliency(attr, input_spectrogram=vis_input, save_path=save_path)
+        print(f"  ✓ Saved: {save_path}")
+    
+    if show_plots:
+        visualize_saliency(attr, input_spectrogram=vis_input, save_path=None)
 
-def run_occlusion(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class, feature_type):
+def run_occlusion(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class, feature_type, show_plots, save_plots):
     """Run Occlusion Sensitivity."""
     print("\n[5/6] Running Occlusion Sensitivity (this will take a while)...")
     occlusion = OcclusionSensitivity(model, device)
@@ -224,13 +243,17 @@ def run_occlusion(model, input_tensor, spectrogram_vis, base_name, output_dir, d
     heatmap = occlusion.compute(input_tensor, target_class=target_class, 
                                window_shape=window_shape, stride=stride)
     
-    save_path = os.path.join(output_dir, f"{base_name}_occlusion.png")
     vis_input = spectrogram_vis if spectrogram_vis is not None else input_tensor.detach().cpu().numpy()
     
-    visualize_saliency(heatmap, input_spectrogram=vis_input, save_path=save_path)
-    print(f"  ✓ Saved: {save_path}")
+    if save_plots:
+        save_path = os.path.join(output_dir, f"{base_name}_occlusion.png")
+        visualize_saliency(heatmap, input_spectrogram=vis_input, save_path=save_path)
+        print(f"  ✓ Saved: {save_path}")
+    
+    if show_plots:
+        visualize_saliency(heatmap, input_spectrogram=vis_input, save_path=None)
 
-def run_gradcam(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class):
+def run_gradcam(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class, show_plots, save_plots):
     """Run Grad-CAM."""
     print("\n[6/6] Running Grad-CAM...")
     
@@ -258,11 +281,15 @@ def run_gradcam(model, input_tensor, spectrogram_vis, base_name, output_dir, dev
             h = torch.nn.functional.interpolate(h, size=(target_l,), mode='linear', align_corners=False)
             heatmap = h.squeeze()
     
-        save_path = os.path.join(output_dir, f"{base_name}_gradcam.png")
         vis_input = spectrogram_vis if spectrogram_vis is not None else input_tensor.detach().cpu().numpy()
         
-        visualize_saliency(heatmap, input_spectrogram=vis_input, save_path=save_path)
-        print(f"  ✓ Saved: {save_path}")
+        if save_plots:
+            save_path = os.path.join(output_dir, f"{base_name}_gradcam.png")
+            visualize_saliency(heatmap, input_spectrogram=vis_input, save_path=save_path)
+            print(f"  ✓ Saved: {save_path}")
+        
+        if show_plots:
+            visualize_saliency(heatmap, input_spectrogram=vis_input, save_path=None)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -270,14 +297,20 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run ALL XAI methods (default)
+  # Run ALL XAI methods and save to files (default)
   python explain.py --config model_config.json --audio_file sample.wav --model_path model.pth
+  
+  # Run ALL methods and display in matplotlib windows
+  python explain.py --config model_config.json --audio_file sample.wav --model_path model.pth --show
   
   # Run specific method only
   python explain.py --config model_config.json --audio_file sample.wav --model_path model.pth --method saliency
   
-  # Run multiple specific methods
-  python explain.py --config model_config.json --audio_file sample.wav --model_path model.pth --method saliency smoothgrad
+  # Run multiple specific methods with display
+  python explain.py --config model_config.json --audio_file sample.wav --model_path model.pth --method saliency smoothgrad --show
+  
+  # Display only (don't save files)
+  python explain.py --config model_config.json --audio_file sample.wav --model_path model.pth --show --no-save
         """
     )
     
@@ -294,6 +327,10 @@ Examples:
                         help="Target class index (0=fake, 1=real). Default: predicted class")
     parser.add_argument("--feature_type", type=int, default=None, 
                         help="Input feature type: 0=Raw, 1=Spectrogram. Overrides config.")
+    parser.add_argument("--show", action="store_true", 
+                        help="Display plots interactively in matplotlib windows (in addition to saving)")
+    parser.add_argument("--no-save", action="store_true", dest="no_save",
+                        help="Don't save plots to files (only display if --show is used)")
 
     args = parser.parse_args()
 
@@ -314,7 +351,8 @@ Examples:
     input_tensor = input_tensor.to(device)
 
     # Create output directory
-    os.makedirs(args.output_dir, exist_ok=True)
+    if not args.no_save:
+        os.makedirs(args.output_dir, exist_ok=True)
     base_name = Path(args.audio_file).stem
     
     # Determine which methods to run
@@ -326,34 +364,39 @@ Examples:
     print(f"\n{'='*60}")
     print(f"Running XAI Analysis on: {base_name}")
     print(f"Methods: {', '.join(methods)}")
-    print(f"Output directory: {args.output_dir}")
+    if not args.no_save:
+        print(f"Output directory: {args.output_dir}")
+    if args.show:
+        print(f"Display mode: Interactive matplotlib windows")
     print(f"{'='*60}")
     
     # Run each method
+    save_plots = not args.no_save
+    
     for method in methods:
         try:
             if method == "attention":
-                run_attention(model, input_tensor, base_name, args.output_dir, device)
+                run_attention(model, input_tensor, base_name, args.output_dir, device, args.show, save_plots)
             
             elif method == "saliency":
                 run_saliency(model, input_tensor, spectrogram_vis, base_name, 
-                           args.output_dir, device, args.target_class)
+                           args.output_dir, device, args.target_class, args.show, save_plots)
             
             elif method == "smoothgrad":
                 run_smoothgrad(model, input_tensor, spectrogram_vis, base_name, 
-                             args.output_dir, device, args.target_class)
+                             args.output_dir, device, args.target_class, args.show, save_plots)
             
             elif method == "integrated_gradients":
                 run_integrated_gradients(model, input_tensor, spectrogram_vis, base_name, 
-                                       args.output_dir, device, args.target_class)
+                                       args.output_dir, device, args.target_class, args.show, save_plots)
             
             elif method == "occlusion":
                 run_occlusion(model, input_tensor, spectrogram_vis, base_name, 
-                            args.output_dir, device, args.target_class, feature_type)
+                            args.output_dir, device, args.target_class, feature_type, args.show, save_plots)
             
             elif method == "gradcam":
                 run_gradcam(model, input_tensor, spectrogram_vis, base_name, 
-                          args.output_dir, device, args.target_class)
+                          args.output_dir, device, args.target_class, args.show, save_plots)
                 
         except Exception as e:
             print(f"  ✗ Error running {method}: {e}")
@@ -362,7 +405,10 @@ Examples:
     
     print(f"\n{'='*60}")
     print(f"✓ XAI Analysis Complete!")
-    print(f"Results saved to: {args.output_dir}")
+    if not args.no_save:
+        print(f"Results saved to: {args.output_dir}")
+    if args.show:
+        print(f"Close matplotlib windows to exit.")
     print(f"{'='*60}\n")
 
 if __name__ == "__main__":
