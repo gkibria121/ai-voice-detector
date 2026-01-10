@@ -10,12 +10,15 @@ import torch
 import torch.nn.functional as F
 import librosa
 import streamlit as st
+from data_utils import extract_feature, pad
+from utils import parse_feature_type
 
 
 def parse_args():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--config", required=False, type=str, default=None)
     parser.add_argument("--eval_model_weights", required=False, type=str, default=None)
+    parser.add_argument("--feature_type", required=False, type=str, default=None)
     # parse_known_args because Streamlit injects its own args
     args, _ = parser.parse_known_args()
     return args
@@ -71,25 +74,31 @@ def load_model(config_path: str, weights_path: str or None, device: torch.device
 
 def preprocess_audio(path: str, feature_type: int = 0, sample_rate: int = 16000):
     y, sr = librosa.load(path, sr=sample_rate, mono=True)
-    # Ensure at least 2 seconds (common for Fake-or-Real / ASVspoof clips)
-    target_seconds = 2
-    target_len = sample_rate * target_seconds
-    if y.shape[0] < target_len:
-        pad = target_len - y.shape[0]
-        y = np.concatenate([y, np.zeros(pad, dtype=y.dtype)])
-    elif y.shape[0] > target_len:
-        y = y[:target_len]
+    
+    # Use extract_feature from data_utils
+    X_feat = extract_feature(y, feature_type=feature_type, sr=sr)
+    
+    # Apply padding consistent with dataset logic
+    cut = 64600  # standard length from data_utils
     if feature_type == 0:
-        # raw waveform -> (1,1,L)
-        x = torch.from_numpy(y).float().unsqueeze(0).unsqueeze(0)
-    elif feature_type == 1:
-        # log-mel spectrogram (n_mels chosen reasonably)
-        mel = librosa.feature.melspectrogram(y, sr=sr, n_fft=1024, hop_length=512, n_mels=64)
-        logmel = librosa.power_to_db(mel)
-        x = torch.from_numpy(logmel).float().unsqueeze(0).unsqueeze(0)
+        # raw waveform
+        X_pad = pad(X_feat, cut)
+        x = torch.from_numpy(X_pad).float().unsqueeze(0).unsqueeze(0)
     else:
-        # fallback to raw
-        x = torch.from_numpy(y).float().unsqueeze(0).unsqueeze(0)
+        # For time-frequency features, pad time dimension (axis=1)
+        # Hop length is 160 in data_utils for most features
+        hop_length = 160
+        target_steps = int(cut / hop_length) + 1
+        
+        time_steps = X_feat.shape[1]
+        if time_steps >= target_steps:
+            X_pad = X_feat[:, :target_steps]
+        else:
+            num_repeats = int(target_steps / time_steps) + 1
+            X_pad = np.tile(X_feat, (1, num_repeats))[:, :target_steps]
+        
+        x = torch.from_numpy(X_pad).float().unsqueeze(0).unsqueeze(0)
+        
     return x
 
 
@@ -143,6 +152,10 @@ def main():
         st.error(f"Failed to load model: {e}")
         st.stop()
 
+    # Support command-line override for feature_type
+    if args.feature_type is not None:
+        config["feature_type"] = parse_feature_type(args.feature_type)
+    
     feature_type = config.get("feature_type", 0)
     sample_rate = config.get("sample_rate", 16000)
 
