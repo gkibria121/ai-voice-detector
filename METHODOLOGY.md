@@ -787,9 +787,8 @@ EER serves as the primary evaluation metric, providing a threshold-independent m
 
 **Mathematical Definition:**
 
-  
 
-$$\text{EER} = \text{FAR}(\theta^*) = \text{FRR}(\theta^*))$$
+$$\text{EER} = \text{FAR}(\theta^*) = \text{FRR}(\theta^*)$$
 
   
 
@@ -1027,7 +1026,7 @@ All configurations also include the master random seed value to enable exact rep
 
 - CPU (Intel i7-10700K): ~150-200ms
 
-- GPU (RTX 3090): ~5-10ms
+- GPU (RTX 4050 Laptop GPU ): ~5-10ms
 
   
 
