@@ -15,11 +15,13 @@
 9. [Evaluation Metrics](#evaluation-metrics)
 10. [Visualization Tools](#visualization-tools)
 11. [Streamlit Web Application](#streamlit-web-application)
-12. [Configuration System](#configuration-system)
-13. [Performance Optimizations](#performance-optimizations)
-14. [CLI Reference](#cli-reference)
-15. [Developer Guide](#developer-guide)
-16. [Examples & Quick Commands](#examples--quick-commands)
+12. [Explainability](#explainability-explainabilitypy)
+13. [Explain CLI Tool](#explain-cli-tool-explainpy)
+14. [Configuration System](#configuration-system)
+15. [Performance Optimizations](#performance-optimizations)
+16. [CLI Reference](#cli-reference)
+17. [Developer Guide](#developer-guide)
+18. [Examples & Quick Commands](#examples--quick-commands)
 
 ---
 
@@ -42,9 +44,8 @@ AI Voice Detector is a research and production-ready codebase for **detecting sy
 ```
 ai-voice-detector/
 ├── main.py                    # Main training/evaluation entrypoint
-├── app.py                     # Streamlit web application for inference
+├── app.py                     # Streamlit web app for real-time inference
 ├── cli.py                     # Command-line argument parser
-├── realtime.py                # Real-time inference utilities
 ├── data_utils.py              # Feature extraction & augmentation functions
 ├── dataset_factory.py         # Dataset loaders for Fake-or-Real
 ├── evaluation.py              # EER, t-DCF computation and evaluation
@@ -52,20 +53,18 @@ ai-voice-detector/
 ├── utils.py                   # Optimizers, schedulers, seeding utilities
 ├── feature_analysis.py        # Audio feature analysis and visualization
 ├── visualize_results.py       # Training results visualization and comparison
-├── download_dataset.py        # Dataset download helper
+├── download_dataset.py        # Dataset download helper 
+├── explainability.py          # XAI utilities (attention, saliency, Grad-CAM)
+├── explain.py                 # CLI tool for explainability analysis
 ├── notebook.ipynb             # Interactive Jupyter notebook with experiments
 ├── requirements.txt           # Python dependencies
-├── Dockerfile                 # Docker container definition
-├── docker-compose.yml         # Docker Compose for CPU
-├── docker-compose-gpu.yml     # Docker Compose for GPU
 │
 ├── models/                    # Neural network architectures
 │   ├── EfficientNetB2.py      # EfficientNet-B2 with optional attention
 │   ├── SEResNet.py            # SE-ResNet with attentive statistics pooling
 │   ├── LCNN.py                # Light CNN with Max-Feature-Map activation
 │   ├── RawNet3.py             # Raw waveform model with SincConv
-│   ├── SimpleCNN.py           # Lightweight baseline CNN
-│   └── FusionNet.py           # Multi-modal fusion architecture
+│   └── SimpleCNN.py           # Lightweight baseline CNN
 │
 ├── config/                    # Model configuration files (JSON)
 │   ├── EfficientNetB2.conf
@@ -77,15 +76,13 @@ ai-voice-detector/
 │   ├── SimpleCNN.conf
 │   └── ensemble.conf
 │
-├── exp_result/                # Experiment outputs (checkpoints, metrics)
-├── comparison_plots/          # Generated model comparison visualizations
 ├── fake_or_real/              # Dataset directory
-│   ├── for-original/
-│   ├── for-norm/
-│   ├── for-2sec/              # Default 2-second clips
-│   └── for-rerec/
+│   └── for-2sec/              # Default 2-second clips
+├── explained_outputs/         # Generated XAI visualizations
 └── bin/
     └── start.sh               # Startup script
+
+> **Note**: `exp_result/` and `comparison_plots/` directories are created automatically during training and visualization.
 ```
 
 ---
@@ -130,16 +127,6 @@ pip install -r requirements.txt
 | `tqdm` | Progress bars |
 | `pandas` | Data manipulation |
 | `kagglehub` | Dataset downloading |
-
-### Docker Deployment
-
-```bash
-# CPU-only deployment
-docker-compose up
-
-# GPU deployment (requires nvidia-docker)
-docker-compose -f docker-compose-gpu.yml up
-```
 
 ---
 
@@ -417,42 +404,6 @@ Applied via `apply_spectrogram_augmentation()`:
 
 **Use Case**: Fast prototyping, sanity checks, embedded deployment.
 
-### FusionNet (`models/FusionNet.py`)
-
-**Architecture**: Multi-modal fusion network with attention.
-
-**Key Features**:
-- Separate feature extractors per modality
-- Self-attention fusion across modalities
-- Supports variable input shapes
-
-**Components**:
-- `FeatureCNN`: Per-modality CNN feature extractor
-- `AttentionFusion`: Cross-modal attention mechanism
-
-### Wav2Vec 2.0 (`models/Wav2Vec2.py`)
-**Architecture**: Wrapper for HuggingFace `Wav2Vec2Model`.
-**Key Features**:
-- Self-supervised pre-training on large speech corpora
-- Contextualized representations from raw audio
-- Fine-tuning or frozen encoder modes
-**Config**: `config/Wav2Vec2.conf`
-
-### HuBERT (`models/HuBERT.py`)
-**Architecture**: Wrapper for HuggingFace `HubertModel`.
-**Key Features**:
-- Masked prediction of hidden units
-- Weighted layer sum for feature combination
-**Config**: `config/HuBERT.conf`
-
-### MobileViT (`models/MobileViT.py`)
-**Architecture**: Lightweight Transformer-CNN hybrid.
-**Key Features**:
-- ~2M parameters (vs >10M for others)
-- Mobile-friendly, efficient inference
-- Global processing via transformer blocks
-**Config**: `config/MobileViT.conf`
-
 ### Ensemble Models
 
 
@@ -645,7 +596,7 @@ python -c "from feature_analysis import analyze_and_visualize_features; \
 
 ### Overview
 
-`app.py` provides a web interface for audio classification using trained models.
+`app.py` provides a web interface for **real-time audio classification** using trained models. It serves as the primary tool for detecting fake/AI-generated audio.
 
 ### Usage
 
@@ -657,9 +608,10 @@ streamlit run app.py -- --config config/EfficientNetB2_Attention.conf --eval_mod
 
 - Upload multiple audio files (WAV, FLAC, MP3)
 - Audio playback in browser
-- Real-time classification (Fake/Real)
-- Confidence scores
+- **Real-time classification** (Fake/Real)
+- Confidence scores with visual indicators
 - Debug mode for tensor/logit inspection
+- Batch processing support
 
 ### Implementation Details
 
@@ -667,57 +619,53 @@ streamlit run app.py -- --config config/EfficientNetB2_Attention.conf --eval_mod
 - Automatic preprocessing (resampling, padding)
 - Supports all model architectures
 - Cached model loading with `@st.cache_resource`
+- Low-latency prediction pipeline
 
 ---
 
+## Explainability (`explainability.py`)
+
+Utilities for understanding model predictions through interpretable visualizations.
+
+**Components**:
+- **AttentionExtractor**: Extracts attention weights from transformer-based models
+- **GradientSaliency**: Gradient-based saliency maps showing important input regions
+- **SmoothGrad**: Noise-averaged gradients for cleaner saliency maps
+- **IntegratedGradients**: Attribution via integrated gradients
+- **OcclusionSensitivity**: Tests importance by occluding input regions
+- **GradCAM**: Gradient-weighted Class Activation Mapping
+
+### Usage
+```python
+from explainability import GradientSaliency, visualize_saliency
+saliency = GradientSaliency(model, device='cuda')
+saliency_map = saliency.compute_saliency(input_tensor, target_class=1)
+```
+
 ---
 
-## Real-time Classification (`realtime.py`)
+## Explain CLI Tool (`explain.py`)
 
-The system includes a production-ready streaming pipeline for live audio detection.
-
-### Features
-- **Sliding Window**: Processes audio in overlapping chunks (e.g., 2s window, 0.5s step)
-- **EMA Smoothing**: Stabilizes predictions using Exponential Moving Average
-- **Low Latency**: Optimized for real-time feedback
+Command-line interface for running explainability analysis on audio files.
 
 ### Usage
 ```bash
-# Microphone input
-python realtime.py --model_path weights.pth --config config.conf
+# Run all XAI methods
+python explain.py --audio audio.wav --config config/EfficientNetB2.conf --weights weights.pth
 
-# File processing
-python realtime.py --file audio.wav --model_path weights.pth
+# Run specific method
+python explain.py --audio audio.wav --config config.conf --weights weights.pth --method grad_cam
 ```
 
----
+### Supported Methods
+- `attention`: Attention map visualization
+- `saliency`: Gradient saliency maps
+- `smoothgrad`: SmoothGrad visualization
+- `integrated_gradients`: Integrated Gradients attribution
+- `occlusion`: Occlusion sensitivity analysis
+- `grad_cam`: Grad-CAM heatmaps
 
-## Domain Adaptation (`domain_adaptation.py`)
-
-Tools for improving generalization across different datasets.
-
-**Methods**:
-- **CORAL**: Correlation Alignment (matches feature covariances)
-- **MMD**: Maximum Mean Discrepancy (kernel-based matching)
-- **DANN**: Domain Adversarial Neural Network (adversarial training)
-
-### Usage
-```python
-from domain_adaptation import DomainAdaptationTrainer
-trainer = DomainAdaptationTrainer(model, adaptation_method='coral')
-```
-
----
-
-## Knowledge Distillation (`models/DistillationTrainer.py`)
-
-Compress large models (Teacher) into lightweight models (Student).
-
-### Usage
-```python
-from models.DistillationTrainer import distill_model
-distill_model(teacher, student, train_loader, ...)
-```
+**Output**: Visualizations saved to `explained_outputs/` directory.
 
 ---
 
