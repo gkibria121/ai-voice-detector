@@ -29,7 +29,7 @@ AI Voice Detector is a research and production-ready codebase for **detecting sy
 
 ### Key Capabilities
 
-- **Multiple Model Architectures**: EfficientNetB2, SEResNet, LCNN, RawNet3, SimpleCNN, FusionNet, and ensemble models
+- **Multiple Model Architectures**: EfficientNetB2, SEResNet, LCNN, RawNet3, SimpleCNN,  and ensemble models
 - **Rich Feature Extraction**: Raw waveform, Mel-spectrogram, LFCC, MFCC, and CQT representations
 - **Comprehensive Augmentation**: RIR simulation, MUSAN-style noise, SpecAugment, pitch shift, time stretch, and more
 - **Production Optimizations**: PyTorch 2.x optimizations, mixed precision training (AMP), TF32, BF16, `torch.compile()`
