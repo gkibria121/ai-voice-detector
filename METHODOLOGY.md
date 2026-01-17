@@ -162,18 +162,15 @@ LFCC was specifically designed for spoofing detection tasks, as it employs a lin
 
   
 
-**1. Linear Filterbank Construction:**
+**1. Linear Filterbank Construction:** 
 
-$$H_b^{\text{lin}}(k) = \begin{cases}
-
+$$
+H_b^{\text{lin}}(k) = \begin{cases}
 \frac{f(k) - f_b^{\text{left}}}{f_b^{\text{center}} - f_b^{\text{left}}} & f_b^{\text{left}} \leq f(k) \leq f_b^{\text{center}} \\
-
 \frac{f_b^{\text{right}} - f(k)}{f_b^{\text{right}} - f_b^{\text{center}}} & f_b^{\text{center}} \leq f(k) \leq f_b^{\text{right}} \\
-
 0 & \text{otherwise}
-
-\end{cases}$$
-
+\end{cases}
+$$
   
 
 where filter centers are linearly spaced: $f_b = b \cdot \frac{f_s/2}{B}$ for $b = 0, \ldots, B$ (20 filters).
@@ -272,7 +269,7 @@ $$y = \text{PitchShift}(x, n_{\text{semitones}} \in [-4, +4])$$
 
   
 
-**4.2.4 Spectral Filtering 
+**4.2.4 Spectral Filtering**
 
 **Low-Pass Filter:** Attenuates high-frequency components (cutoff: 2000-6000 Hz).
   
@@ -289,26 +286,23 @@ For spectro-temporal representations, we employ SpecAugment, which applies rando
  
 **Frequency Masking:** Randomly selects a frequency band and masks it:
 
-$$\tilde{S}(f, t) = \begin{cases}
-
+$$
+\tilde{S}(f, t) = \begin{cases}
 \bar{S} & f \in [f_0, f_0 + F] \\
-
 S(f, t) & \text{otherwise}
-
-\end{cases}$$
+\end{cases}
+$$
  
 
 where $F \sim \mathcal{U}(1, F_{\max})$ with $F_{\max} = 20$ bins, and $\bar{S}$ is the mean value.
  
 **Time Masking:** Similarly masks contiguous time frames:
-
-$$\tilde{S}(f, t) = \begin{cases}
-
+$$
+\tilde{S}(f, t) = \begin{cases}
 \bar{S} & t \in [t_0, t_0 + T] \\
-
 S(f, t) & \text{otherwise}
-
-\end{cases}$$
+\end{cases}
+$$
  
 with $T \sim \mathcal{U}(1, T_{\max})$ where $T_{\max} = 50$ frames.
 
