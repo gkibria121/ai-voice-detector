@@ -61,22 +61,14 @@ The DataLoader configuration was optimized for both training efficiency and repr
 
   
 
-| Parameter | Value | Rationale |
-
-|-----------|-------|-----------|
-
-| `batch_size` | 32 | Balanced GPU memory utilization and gradient stability |
-
-| `num_workers` | 4 | Parallel data loading to prevent I/O bottlenecks |
-
-| `pin_memory` | True | Accelerated CPU-to-GPU transfers |
-
-| `persistent_workers` | True | Reduced worker initialization overhead |
-
-| `prefetch_factor` | 2 | Overlapped data loading with computation |
-
-| `drop_last` | True (train) | Consistent batch sizes for BatchNorm stability |
-
+| Parameter | Value | Rationale | 
+|-----------|-------|-----------| 
+| `batch_size` | 32 | Balanced GPU memory utilization and gradient stability | 
+| `num_workers` | 4 | Parallel data loading to prevent I/O bottlenecks | 
+| `pin_memory` | True | Accelerated CPU-to-GPU transfers | 
+| `persistent_workers` | True | Reduced worker initialization overhead | 
+| `prefetch_factor` | 2 | Overlapped data loading with computation | 
+| `drop_last` | True (train) | Consistent batch sizes for BatchNorm stability | 
   
 
 Worker initialization employs deterministic seeding to ensure reproducibility.
@@ -91,19 +83,13 @@ The system supports multiple acoustic feature representations, each capturing di
  
   
 
-  | Feature Name | Dimensionality | Primary Application |
-
-|------|-------------|----------------|---------------------|
-
-  | Raw Waveform | $(N,)$ | End-to-end learning |
-
- | Log-Mel Spectrogram | $(128, T)$ | General-purpose CNN models |
-
- | LFCC | $(13, T)$ | Anti-spoofing (linear frequency) |
-
-  | MFCC | $(13, T)$ | Traditional speech processing |
-
- | CQT | $(84, T)$ | Harmonic and tonal analysis | 
+| Feature Name | Dimensionality | Primary Application | 
+|-------------|----------------|---------------------| 
+| Raw Waveform | $(N,)$ | End-to-end learning | 
+| Log-Mel Spectrogram | $(128, T)$ | General-purpose CNN models | 
+| LFCC | $(13, T)$ | Anti-spoofing (linear frequency) | 
+| MFCC | $(13, T)$ | Traditional speech processing | 
+| CQT | $(84, T)$ | Harmonic and tonal analysis | 
 
   
 
@@ -587,18 +573,12 @@ where $t$ is the current step, $T$ is the total training steps, $\eta_{\max} = 1
  
 ### 7.1 Training Configuration
  
-| Hyperparameter | Value | Justification |
-
-|----------------|-------|---------------|
-
-| Epochs | 20 | Sufficient for convergence on dataset |
-
-| Batch Size | 32 | Balanced GPU memory and gradient stability |
-
-| Initial Learning Rate | $10^{-4}$ | Standard for Adam optimizer |
-
-| Weight Decay | $10^{-4}$ | L2 regularization strength |
-
+| Hyperparameter | Value | Justification | 
+|----------------|-------|---------------| 
+| Epochs | 20 | Sufficient for convergence on dataset | 
+| Batch Size | 32 | Balanced GPU memory and gradient stability | 
+| Initial Learning Rate | $10^{-4}$ | Standard for Adam optimizer | 
+| Weight Decay | $10^{-4}$ | L2 regularization strength | 
 | Gradient Clip Norm | 1.0 | Prevents gradient explosion |
 
   
@@ -863,10 +843,7 @@ $$\text{DET}: \Phi^{-1}(\text{FRR}(\theta)) \text{ vs. } \Phi^{-1}(\text{FAR}(\t
 
 where $\Phi^{-1}$ is the inverse standard normal CDF.
 
-  
-
----
-
+ 
   
 
 ## 12. Optimization Techniques
@@ -1028,16 +1005,11 @@ All configurations also include the master random seed value to enable exact rep
 ### 14.2 Training Time
 
   
-| Model | Parameters | Training Time (20 epochs) | GPU Memory |
-
-|-------|-----------|---------------------------|------------|
-
-| EfficientNet-B2 | 9.2M | 1.5 - 2 hours | 5.5GB |
-
-| LCNN | 3.5M | 1.5-2 hours |  5.5GB |
-
-| RawNet3 | 8.1M | 2-3 hours | 6GB |
-
+| Model | Parameters | Training Time (20 epochs) | GPU Memory | 
+|-------|-----------|---------------------------|------------| 
+| EfficientNet-B2 | 9.2M | 1.5 - 2 hours | 5.5GB | 
+| LCNN | 3.5M | 1.5-2 hours |  5.5GB | 
+| RawNet3 | 8.1M | 2-3 hours | 6GB | 
 | SE-ResNet | 11.2M | 1.5 -  2 hours | 5GB |
 | Ensemble| ~23M | 2-3  hours | 8.8GB |
 
@@ -1092,10 +1064,7 @@ All configurations also include the master random seed value to enable exact rep
 - **Augmentation cache (optional):** 10-20GB
 
   
-
----
-
-  
+ 
 
 ## 15. Conclusion
 
