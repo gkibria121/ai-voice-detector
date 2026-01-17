@@ -788,9 +788,8 @@ EER serves as the primary evaluation metric, providing a threshold-independent m
 **Mathematical Definition:**
 
 $$
-\text{EER} = \text{FAR}(\theta^{*}) = \text{FRR}(\theta^{*})
+\text{EER} = \text{FAR}(\theta^*) = \text{FRR}(\theta^*)
 $$
-  
 
 where:
 
