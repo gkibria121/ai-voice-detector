@@ -1,38 +1,37 @@
  
 
-1. [Data Preparation and Preprocessing](#2-data-preparation-and-preprocessing)
+1. [Data Preparation and Preprocessing](#1-data-preparation-and-preprocessing)
 
-2. [Feature Extraction](#3-feature-extraction)
+2. [Feature Extraction](#2-feature-extraction)
 
-3. [Data Augmentation](#4-data-augmentation)
+3. [Data Augmentation](#3-data-augmentation)
 
-4. [Network Architectures](#5-network-architectures)
+4. [Network Architectures](#4-network-architectures)
 
-5. [Experimental Setup](#6-experimental-setup)
+5. [Experimental Setup](#5-experimental-setup)
 
-6. [Training Procedure](#7-training-procedure)
+6. [Training Procedure](#6-training-procedure)
 
-7. [Model Validation and Selection](#8-model-validation-and-selection)
+7. [Model Validation and Selection](#7-model-validation-and-selection)
 
-8. [Ensemble Strategy](#9-ensemble-strategy)
+8. [Ensemble Strategy](#8-ensemble-strategy)
 
-9. [Inference Pipeline](#10-inference-pipeline)
+9. [Inference Pipeline](#9-inference-pipeline)
 
-10. [Evaluation Metrics](#11-evaluation-metrics)
+10. [Evaluation Metrics](#10-evaluation-metrics)
 
-11. [Optimization Techniques](#12-optimization-techniques)
+11. [Optimization Techniques](#11-optimization-techniques)
 
-12. [Reproducibility](#13-reproducibility)
-
-13. [Computational Resources](#14-computational-resources)
+12. [Reproducibility](#12-reproducibility)
+ 
 
 
 ## 1. Data Preparation and Preprocessing
-### 2.1 Dataset Description 
+### 1.1 Dataset Description 
 
 The system was developed and evaluated using the "Fake-or-Real" dataset, which consists of bonafide (genuine human) and spoofed (synthetically generated) audio recordings. The dataset is organized into training, validation, and testing partitions, with balanced representation of both classes to facilitate unbiased model learning.
 
-### 2.2 Audio Loading and Standardization 
+### 1.2 Audio Loading and Standardization 
 All audio samples undergo standardized preprocessing to ensure consistency across the pipeline. Audio files are loaded using the `soundfile` library, which provides automatic format detection and efficient decoding for multiple audio formats including WAV, FLAC, and MP3.
 The preprocessing pipeline consists of the following operations:
 **Step 1: Format Conversion**
@@ -40,7 +39,7 @@ The preprocessing pipeline consists of the following operations:
 **Step 3: Resampling**
 This sampling rate was selected based on the Nyquist-Shannon sampling theorem, which ensures adequate representation of speech frequencies (typically below 8 kHz) while maintaining computational tractability.
 
-### 2.3 Fixed-Length Segmentation
+### 1.3 Fixed-Length Segmentation
   
 
 To facilitate batch processing and ensure consistent input dimensions for neural network training, all audio signals are processed to a fixed length of 64,600 samples, corresponding to approximately 4.04 seconds at 16 kHz sampling rate. This duration was empirically determined to capture sufficient contextual information for classification while maintaining computational efficiency.
@@ -53,7 +52,7 @@ For audio segments exceeding the target length ($L > 64600$), two strategies are
 1. **Training Phase:** Random cropping to introduce variability and prevent overfitting.
 2. **Inference Phase:** Center cropping for deterministic evaluation.
  
-### 2.4 Batch Processing Configuration
+### 1.4 Batch Processing Configuration
 
   
 
@@ -73,10 +72,10 @@ The DataLoader configuration was optimized for both training efficiency and repr
 
 Worker initialization employs deterministic seeding to ensure reproducibility.
 
-## 3. Feature Extraction
+## 2. Feature Extraction
 
 
-### 3.1 Overview of Acoustic Representations
+### 2.1 Overview of Acoustic Representations
  
 
 The system supports multiple acoustic feature representations, each capturing different aspects of audio characteristics relevant to deepfake detection. The feature extraction strategy is configurable, enabling comparative analysis and multi-modal fusion.
@@ -97,7 +96,7 @@ where $N$ denotes the number of samples (64,600) and $T$ represents the temporal
 
 
 
-### 3.2 Log-Mel Spectrogram  
+### 2.2 Log-Mel Spectrogram  
 
   
 
@@ -150,7 +149,7 @@ where $\epsilon = 10^{-10}$ prevents numerical instability.
 **Perceptual Motivation:** The Mel scale approximates the non-linear frequency resolution of human hearing, emphasizing perceptually relevant frequencies for speech (300-4000 Hz).
 
 
-### 3.3 Linear Frequency Cepstral Coefficients 
+### 2.3 Linear Frequency Cepstral Coefficients 
 
   
 
@@ -199,7 +198,7 @@ The first 13 coefficients ($c = 0, \ldots, 12$) are retained, providing a compac
 
 
   
-### 3.5 Multi-Modal Feature Fusion
+### 2.5 Multi-Modal Feature Fusion
 
 To leverage complementary information from multiple acoustic representations, the system employs an **intermediate fusion strategy**. This approach combines multiple feature types at the feature level before classification, enabling the model to learn complex inter-modal relationships and capture diverse acoustic characteristics of AI-generated speech.
 
@@ -222,16 +221,16 @@ This intermediate fusion strategy enables the convolutional neural network to le
  
 
 
-## 4. Data Augmentation   
-### 4.1 Motivation and Strategy
+## 3. Data Augmentation   
+### 3.1 Motivation and Strategy
 
   
 
 Data augmentation serves two critical purposes in audio deepfake detection: (1) preventing overfitting to training set characteristics, and (2) improving generalization across diverse acoustic environments and recording conditions. Our augmentation pipeline applies probabilistic transformations at the waveform level during training only, with an application probability of $p = 0.8$.
 
-### 4.2 Waveform-Level Augmentations
+### 3.2 Waveform-Level Augmentations
  
-**4.2.1 Additive Noise**
+**3.2.1 Additive Noise**
  
 **Gaussian White Noise:** Introduces random perturbations with controlled Signal-to-Noise Ratio (SNR): 
 
@@ -245,7 +244,7 @@ where $P_x = \mathbb{E}[x^2(t)]$ is the signal power. SNR is randomly sampled fr
 
 **MUSAN-style Environmental Noise:** Simulates realistic recording conditions by mixing with ambient sound, music, or babble noise at randomly selected SNR levels (5-25 dB). 
 
-**4.2.2 Room Impulse Response (RIR) Simulation 
+**3.2.2 Room Impulse Response (RIR) Simulation 
 
 Acoustic reverberation is modeled by convolving the source signal with a synthetic room impulse response: 
 $$y(t) = x(t) * h(t)$$
@@ -256,7 +255,7 @@ $$h(t) = \delta(t) + \alpha \cdot \mathcal{N}(0, 1) \cdot e^{-3t/RT_{60}}$$
 with reverberation time $RT_{60} \in [0.1, 0.5]$ seconds, and $\alpha$ controlling the wet/dry mix.
  
 
-**4.2.3 Temporal Perturbations**
+**3.2.3 Temporal Perturbations**
  
 **Time Stretching:** Modifies the temporal characteristics without affecting pitch:
 
@@ -269,7 +268,7 @@ $$y = \text{PitchShift}(x, n_{\text{semitones}} \in [-4, +4])$$
 
   
 
-**4.2.4 Spectral Filtering**
+**3.2.4 Spectral Filtering**
 
 **Low-Pass Filter:** Attenuates high-frequency components (cutoff: 2000-6000 Hz).
   
@@ -277,10 +276,10 @@ $$y = \text{PitchShift}(x, n_{\text{semitones}} \in [-4, +4])$$
  
 These filters simulate bandwidth limitations in communication channels.
  
-**4.2.5 Amplitude Perturbations**
+**3.2.5 Amplitude Perturbations**
  
 **Gain Adjustment:** Random amplitude scaling in the range $[-6, +6]$ dB.
-### 4.3 Spectrogram-Level Augmentation: SpecAugment
+### 3.3 Spectrogram-Level Augmentation: SpecAugment
  
 For spectro-temporal representations, we employ SpecAugment, which applies random masking along frequency and time axes.
  
@@ -312,7 +311,7 @@ Both masking operations are applied with probability 0.5 each.
 
   
 
-### 4.4 Composition Strategy
+### 3.4 Composition Strategy
 
   
 
@@ -323,11 +322,11 @@ This compositional approach creates diverse acoustic variations while avoiding e
 
   
 
-## 5. Network Architectures
+## 4. Network Architectures
 
   
 
-### 5.1 Overview
+### 4.1 Overview
 
   
 
@@ -335,7 +334,7 @@ We employed a diverse set of deep neural network architectures, each offering di
 
   
 
-### 5.2 EfficientNet-B2
+### 4.2 EfficientNet-B2
 
   
 
@@ -393,7 +392,7 @@ The progressive dimensionality reduction with interleaved regularization prevent
 
   
 
-### 5.3 Light CNN (LCNN)
+### 4.3 Light CNN (LCNN)
 
   
 
@@ -481,7 +480,7 @@ where $\phi$ is a learned transformation and $[\cdot; \cdot]$ denotes concatenat
 
   
 
-### 5.4 RawNet3
+### 4.4 RawNet3
 
 **Architecture Description:**
 
@@ -502,7 +501,7 @@ where $f_c$ is the learnable cutoff frequency and $w[n]$ is a Hamming window.
  
 3. **Gated Recurrent Units (GRU):** Captures long-range temporal dependencies.
  
-### 5.5 SE-ResNet
+### 4.5 SE-ResNet
  
 **Architecture Description:**
  
@@ -517,11 +516,11 @@ $$\tilde{\mathbf{F}}_c = \mathbf{F}_c \cdot \sigma(W_2 \delta(W_1 \mathbf{z}))$$
 where $\mathbf{z} = \frac{1}{HW}\sum_{h,w} \mathbf{F}_{c,h,w}$ is global average pooling, $\delta$ is ReLU, $\sigma$ is sigmoid, and $W_1, W_2$ are learned projections.
 
 
-## 6. Experimental Setup
+## 5. Experimental Setup
 
   
 
-### 6.1 Loss Function
+### 5.1 Loss Function
 
    
 A weighted Cross-Entropy loss addresses class imbalance:
@@ -532,7 +531,7 @@ $$\mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N} w_{y_i} \log p_{y_i}(\mathbf{x}_i)$$
 
 where $w_0 = 0.1$ (spoof) and $w_1 = 0.9$ (bonafide), emphasizing correct classification of genuine audio.
  
-### 6.2 Optimization
+### 5.2 Optimization
  
 **Adam Optimizer:** Adaptive moment estimation with parameters:
 
@@ -552,7 +551,7 @@ $$\eta_t = \eta_{\min} + \frac{1}{2}(\eta_{\max} - \eta_{\min})\left(1 + \cos\le
 
 where $t$ is the current step, $T$ is the total training steps, $\eta_{\max} = 10^{-4}$, and $\eta_{\min} = 10^{-6}$.
  
-### 6.3 Regularization
+### 5.3 Regularization
  
 
 1. **Dropout:** Applied with $p = 0.3$ in fully connected layers
@@ -563,9 +562,9 @@ where $t$ is the current step, $T$ is the total training steps, $\eta_{\max} = 1
 
 4. **Early Stopping:** Based on validation EER with patience of 5 epochs
 
-## 7. Training Procedure
+## 6. Training Procedure
  
-### 7.1 Training Configuration
+### 6.1 Training Configuration
  
 | Hyperparameter | Value | Justification | 
 |----------------|-------|---------------| 
@@ -577,12 +576,12 @@ where $t$ is the current step, $T$ is the total training steps, $\eta_{\max} = 1
 
   
 
-### 7.2 Mixed Precision Training
+### 6.2 Mixed Precision Training
 
   
 
 To accelerate training and reduce memory consumption, we employed Automatic Mixed Precision (AMP),  Precision Selection, Training Loop with AMP 
-### 7.3 Stochastic Weight Averaging (SWA)
+### 6.3 Stochastic Weight Averaging (SWA)
  
 SWA improves generalization by averaging model weights traversed during training:
  
@@ -601,7 +600,7 @@ where $\{n_k\}$ are epochs selected for averaging (typically the last 50% of tra
 - Often yields 0.5-1.0% improvement in EER
  
 
-### 7.4 Epoch Training Loop
+### 6.4 Epoch Training Loop
 
 The training process follows a standard supervised learning paradigm with several optimization techniques to ensure robust model convergence and generalization.
 
@@ -629,11 +628,11 @@ For enhanced generalization, Stochastic Weight Averaging (SWA) can be enabled du
 
   
 
-## 8. Model Validation and Selection
+## 7. Model Validation and Selection
 
   
 
-### 8.1 Score Generation
+### 7.1 Score Generation
 
   
 
@@ -649,7 +648,7 @@ Higher scores indicate higher confidence in bonafide classification.
 
   
 
-### 8.2 Equal Error Rate (EER) Computation
+### 7.2 Equal Error Rate (EER) Computation
 
   
 
@@ -680,21 +679,21 @@ $$\text{EER} = \text{FAR}(\theta^*) = \text{FRR}(\theta^*) \text{ where } |\text
 
   
 
-### 8.3 Model Selection Criterion
+### 7.3 Model Selection Criterion
 
   
 
 The model checkpoint yielding the lowest EER on the validation set is selected for final evaluation on the test set. This prevents overfitting to validation data through early stopping.
 
    
-## 9. Ensemble Strategy 
-### 9.1 Motivation
+## 8. Ensemble Strategy 
+### 8.1 Motivation
 
    
 Ensemble methods reduce prediction variance and improve robustness by combining predictions from multiple models trained with different initializations, architectures, or hyperparameters.
 
    
-### 9.2 Soft Voting
+### 8.2 Soft Voting
  
 
 Given $M$ trained models $\{f_1, \ldots, f_M\}$, the ensemble prediction is computed via soft voting: 
@@ -706,7 +705,7 @@ $$p_{\text{ensemble}}(y|\mathbf{x}) = \frac{1}{M}\sum_{m=1}^{M} p_m(y|\mathbf{x}
 $$\hat{y} = \arg\max_y p_{\text{ensemble}}(y|\mathbf{x})$$
  
 
-### 9.3 Score-Level Fusion
+### 8.3 Score-Level Fusion
  
 For EER evaluation, scores are averaged:
  
@@ -715,7 +714,7 @@ $$s_{\text{ensemble}}(\mathbf{x}) = \frac{1}{M}\sum_{m=1}^{M} s_m(\mathbf{x})$$
 
 This provides a robust aggregate score for threshold-based decision-making.
  
-### 9.4 Ensemble Configuration
+### 8.4 Ensemble Configuration
  
 
 Our best-performing ensemble consists of:
@@ -729,9 +728,9 @@ Our best-performing ensemble consists of:
 This combination leverages complementary architectural inductive biases.
 
 
-## 10. Inference Pipeline
+## 9. Inference Pipeline
 
-### 10.1 Pipeline Stages
+### 9.1 Pipeline Stages
 
 The inference pipeline processes audio files through the following sequential stages:
 
@@ -755,7 +754,7 @@ The model is set to evaluation mode to disable training-specific operations such
 
 The decision is based on the bonafide class logit score. If this score exceeds a predetermined threshold, the audio is classified as "Bonafide" (genuine human speech); otherwise, it is classified as "Spoof" (AI-generated). The confidence level is extracted from the probability distribution, representing the model's certainty in its prediction.
 
-### 10.2 Batch Inference Optimization
+### 9.2 Batch Inference Optimization
 
 For processing multiple audio files efficiently, batch inference is implemented to reduce computational overhead and improve throughput.
 
@@ -767,11 +766,11 @@ The resulting logit scores are extracted for all samples in the batch and accumu
 
    
 
-## 11. Evaluation Metrics
+## 10. Evaluation Metrics
 
   
 
-### 11.1 Primary Metric: Equal Error Rate (EER)
+### 10.1 Primary Metric: Equal Error Rate (EER)
 
   
 
@@ -805,7 +804,7 @@ where:
 
   
 
-### 11.2 Secondary Metric: Classification Accuracy
+### 10.2 Secondary Metric: Classification Accuracy
 
   
 
@@ -821,7 +820,7 @@ where decisions are made using the EER threshold $\theta^*$.
 
   
 
-### 11.3 Detection Error Tradeoff (DET) Curve
+### 10.3 Detection Error Tradeoff (DET) Curve
 
   
 
@@ -838,11 +837,11 @@ where $\Phi^{-1}$ is the inverse standard normal CDF.
  
   
 
-## 12. Optimization Techniques
+## 11. Optimization Techniques
 
   
 
-### 12.1 Mixed Precision Training
+### 11.1 Mixed Precision Training
 
   
 
@@ -884,7 +883,7 @@ Mixed precision training reduces memory footprint and accelerates computation by
 
   
 
-### 12.2 TensorFloat-32 (TF32)
+### 11.2 TensorFloat-32 (TF32)
 
   
 
@@ -912,7 +911,7 @@ torch.backends.cudnn.allow_tf32 = True
 
   
 
-### 12.3 Channels-Last Memory Layout
+### 11.3 Channels-Last Memory Layout
 
   
 
@@ -921,16 +920,16 @@ Channels-last format $(N, H, W, C)$ improves memory locality and enables hardwar
   
 
 $$\text{Speedup} \approx 1.2\text{-}1.3\times \text{ on modern GPUs}$$
-### 12.4 Gradient Accumulation
+### 11.4 Gradient Accumulation
 
   
 For effective large batch training with limited memory.
 
 Effective batch size: $B_{\text{eff}} = B \times A$ where $A$ is accumulation steps.
 
-  ## 13. Reproducibility
+## 12. Reproducibility
 
-### 13.1 Random Seed Control
+### 12.1 Random Seed Control
 
 To ensure reproducibility of experimental results, complete control over all sources of randomness is essential. This involves setting deterministic seeds for all random number generators used throughout the pipeline, including Python's native random module, NumPy's random number generator, PyTorch's CPU and GPU random generators, and CUDA operations.
 
@@ -938,13 +937,13 @@ Additionally, deterministic operation modes are enabled for CUDA Deep Neural Net
 
 **Trade-off:** The choice between deterministic reproducibility and computational performance should be made based on experimental requirements. Deterministic mode is recommended for final experiments and benchmark comparisons, while non-deterministic mode may be acceptable during exploratory research phases.
 
-### 13.2 DataLoader Worker Seeding
+### 12.2 DataLoader Worker Seeding
 
 Multi-threaded data loading introduces additional sources of randomness that must be controlled. Each worker process in the data loader is assigned a unique but deterministic seed derived from the master random seed. This ensures that data augmentation operations, shuffling, and sampling remain consistent across different runs while maintaining parallelism during data loading.
 
 A dedicated random number generator is created and seeded for the data loader, and a worker initialization function ensures that each worker thread initializes its random state deterministically based on the worker ID and the master seed.
 
-### 13.3 Reproducibility Checklist
+### 12.3 Reproducibility Checklist
 
 To fully reproduce experimental results, the following components must be identical across different runs:
 
@@ -956,7 +955,7 @@ To fully reproduce experimental results, the following components must be identi
 ✓ **Hardware specifications**: GPU model may affect numerical precision due to different floating-point implementations  
 ✓ **Operating system**: OS version and CUDA driver versions can impact computational behavior  
 
-### 13.4 Configuration Management
+### 12.4 Configuration Management
 
 To facilitate reproducibility and experimental tracking, all configuration parameters are systematically documented and stored in structured format. This includes three primary configuration categories:
 
@@ -970,95 +969,7 @@ All configurations also include the master random seed value to enable exact rep
 
   
 
-## 14. Computational Resources
-
-### 14.1 Hardware Specifications
-
-
-**Recommended Configuration:**
-
-- **GPU:** NVIDIA RTX 3090 (24GB VRAM) or equivalent
-
-- **CPU:** 8+ cores for data loading
-
-- **RAM:** 32GB minimum
-
-- **Storage:** SSD for dataset (recommended for I/O performance)
-
-
-**Minimum Configuration:**
-
-- **GPU:** NVIDIA GTX 1080 Ti (11GB VRAM)
-
-- **CPU:** 4 cores
-
-- **RAM:** 16GB
-
-### 14.2 Training Time
-
-  
-| Model | Parameters | Training Time (20 epochs) | GPU Memory | 
-|-------|-----------|---------------------------|------------| 
-| EfficientNet-B2 | 9.2M | 1.5 - 2 hours | 5.5GB | 
-| LCNN | 3.5M | 1.5-2 hours |  5.5GB | 
-| RawNet3 | 8.1M | 2-3 hours | 6GB | 
-| SE-ResNet | 11.2M | 1.5 -  2 hours | 5GB |
-| Ensemble| ~23M | 2-3  hours | 8.8GB |
-
-  
-
-*Measurements on RTX 4050 Laptop GPU  with batch size 32 and mixed precision.*
-
-  
-
-### 14.3 Inference Performance
-
-  
-
-**Single Sample Latency:**
-
-- CPU (Intel i7-10700K): ~150-200ms
-
-- GPU (RTX 4050 Laptop GPU ): ~5-10ms
-
-  
-
-**Batch Inference Throughput (GPU):**
-
-- Batch size 1: ~100-200 samples/sec
-
-- Batch size 32: ~2000-3000 samples/sec
-
-- Batch size 128: ~3500-4500 samples/sec
-
-  
-
-**Memory Usage (Inference):**
-
-- Model weights: 30-50MB
-
-- Single sample: <100MB
-
-- Batch of 32: ~500MB-1GB
-
-  
-
-### 14.4 Storage Requirements
-
-  
-
-- **Dataset (Fake-or-Real):** ~2-5GB
-
-- **Model checkpoints:** 30-50MB per model
-
-- **Training artifacts:** ~500MB per experiment (logs, metrics, scores)
-
-- **Augmentation cache (optional):** 10-20GB
-
-  
- 
-
-## 15. Conclusion
+## 13. Conclusion
 
   
 
