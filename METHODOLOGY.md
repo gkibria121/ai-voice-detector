@@ -1,5 +1,3 @@
- 
-
 1. [Data Preparation and Preprocessing](#1-data-preparation-and-preprocessing)
 
 2. [Feature Extraction](#2-feature-extraction)
@@ -23,6 +21,10 @@
 11. [Optimization Techniques](#11-optimization-techniques)
 
 12. [Reproducibility](#12-reproducibility)
+
+13. [Explainable AI (XAI) Methodology](#13-explainable-ai-xai-methodology)
+
+14. [Conclusion](#14-conclusion)
  
 
 
@@ -235,103 +237,133 @@ This intermediate fusion strategy enables the convolutional neural network to le
 ## 3. Data Augmentation   
 ### 3.1 Motivation and Strategy
 
-  
-
 Data augmentation serves two critical purposes in audio deepfake detection: (1) preventing overfitting to training set characteristics, and (2) improving generalization across diverse acoustic environments and recording conditions. Our augmentation pipeline applies probabilistic transformations at the waveform level during training only, with an application probability of $p = 0.8$.
 
-### 3.2 Waveform-Level Augmentations
- 
-**3.2.1 Additive Noise**
- 
-**Gaussian White Noise:** Introduces random perturbations with controlled Signal-to-Noise Ratio (SNR): 
+### 3.2 Composed Augmentation Strategy
+
+The system employs a **composed augmentation** approach where 1-2 augmentations are randomly selected and applied sequentially to each audio sample. This creates diverse acoustic variations while avoiding excessive distortion.
+
+### 3.3 Waveform-Level Augmentations
+
+**3.3.1 Gaussian White Noise**
+
+Introduces random perturbations with controlled Signal-to-Noise Ratio (SNR):
 
 $$y(t) = x(t) + \sqrt{\frac{P_x}{10^{\text{SNR}/10}}} \cdot \mathcal{N}(0, 1)$$
 
-  
-
 where $P_x = \mathbb{E}[x^2(t)]$ is the signal power. SNR is randomly sampled from the range [10, 25] dB.
 
-  
+**3.3.2 Background Noise**
 
-**MUSAN-style Environmental Noise:** Simulates realistic recording conditions by mixing with ambient sound, music, or babble noise at randomly selected SNR levels (5-25 dB). 
+Adds synthetic white noise scaled by a noise factor:
 
-**3.2.2 Room Impulse Response (RIR) Simulation**
+$$y(t) = x(t) + \alpha \cdot \max|x(t)| \cdot \frac{n(t)}{\max|n(t)|}$$
 
-Acoustic reverberation is modeled by convolving the source signal with a synthetic room impulse response: 
-$$y(t) = x(t) * h(t)$$
+where $\alpha \in [0.01, 0.05]$ controls the noise amplitude and $n(t)$ is Gaussian white noise.
 
-  where the impulse response is generated as: 
-$$h(t) = \delta(t) + \alpha \cdot \mathcal{N}(0, 1) \cdot e^{-3t/RT_{60}}$$
- 
-with reverberation time $RT_{60} \in [0.1, 0.5]$ seconds, and $\alpha$ controlling the wet/dry mix.
- 
+**3.3.3 Reverberation**
 
-**3.2.3 Temporal Perturbations**
- 
-**Time Stretching:** Modifies the temporal characteristics without affecting pitch:
+Simulates room acoustics by adding a delayed echo:
 
-$$y = \text{TimeStretch}(x, \text{rate} \in [0.85, 1.15])$$
- 
+$$y(t) = x(t) + \beta \cdot x(t - \tau)$$
 
-**Pitch Shifting:** Alters the fundamental frequency while preserving duration:
+where $\tau = 50\text{ms}$ (800 samples at 16 kHz) and $\beta \in [0.3, 0.8]$ controls the echo amplitude.
+
+**3.3.4 Pitch Shifting**
+
+Alters the fundamental frequency while preserving duration using librosa:
 
 $$y = \text{PitchShift}(x, n_{\text{semitones}} \in [-4, +4])$$
 
-  
+**3.3.5 Time Stretching**
 
-**3.2.4 Spectral Filtering**
+Modifies the temporal characteristics without affecting pitch:
 
-**Low-Pass Filter:** Attenuates high-frequency components (cutoff: 2000-6000 Hz).
-  
-**High-Pass Filter:** Removes low-frequency components (cutoff: 50-300 Hz).
- 
-These filters simulate bandwidth limitations in communication channels.
- 
-**3.2.5 Amplitude Perturbations**
- 
-**Gain Adjustment:** Random amplitude scaling in the range $[-6, +6]$ dB.
-### 3.3 Spectrogram-Level Augmentation: SpecAugment
- 
-For spectro-temporal representations, we employ SpecAugment, which applies random masking along frequency and time axes.
- 
-**Frequency Masking:** Randomly selects a frequency band and masks it:
+$$y = \text{TimeStretch}(x, \text{rate} \in [0.85, 1.15])$$
 
-$$
-\tilde{S}(f, t) = \begin{cases}
-\bar{S} & f \in [f_0, f_0 + F] \\
-S(f, t) & \text{otherwise}
-\end{cases}
-$$
- 
+**3.3.6 Gain Adjustment**
 
-where $F \sim \mathcal{U}(1, F_{\max})$ with $F_{\max} = 20$ bins, and $\bar{S}$ is the mean value.
- 
-**Time Masking:** Similarly masks contiguous time frames:
-$$
-\tilde{S}(f, t) = \begin{cases}
-\bar{S} & t \in [t_0, t_0 + T] \\
-S(f, t) & \text{otherwise}
-\end{cases}
-$$
- 
-with $T \sim \mathcal{U}(1, T_{\max})$ where $T_{\max} = 50$ frames.
+Random amplitude scaling in decibels:
 
-  
+$$y(t) = x(t) \cdot 10^{g/20}$$
 
-Both masking operations are applied with probability 0.5 each.
+where $g \in [-6, +6]$ dB.
 
-  
+**3.3.7 Low-Pass Filter**
 
-### 3.4 Composition Strategy
+Attenuates high-frequency components to simulate bandwidth-limited channels:
 
-  
+- 4th-order Butterworth filter
+- Cutoff frequency: randomly selected from [2000, 6000] Hz
 
-During training, each audio sample undergoes a randomized composition of 1-2 augmentations selected from the available pool
+**3.3.8 High-Pass Filter**
 
-This compositional approach creates diverse acoustic variations while avoiding excessive distortion.
+Removes low-frequency components:
 
+- 4th-order Butterworth filter
+- Cutoff frequency: randomly selected from [50, 300] Hz
 
-  
+**3.3.9 Room Impulse Response (RIR) Simulation**
+
+Synthesizes realistic room acoustics by convolving with a generated impulse response:
+
+$$y(t) = x(t) * h(t)$$
+
+where the impulse response is generated as:
+
+$$h(t) = \delta(t) + \mathcal{N}(0, 1) \cdot e^{-3t/RT_{60}}$$
+
+with reverberation time $RT_{60} \in [0.1, 0.5]$ seconds randomly sampled.
+
+**3.3.10 MUSAN-Style Noise**
+
+Simulates realistic environmental noise conditions with three noise types:
+
+| Noise Type | Description | Frequency Range | SNR Range |
+|------------|-------------|-----------------|-----------|
+| Babble | Overlapping speech-like sounds | 300-3400 Hz (bandpass) | 10-20 dB |
+| Music | Low-frequency emphasis | 0-4000 Hz (lowpass) | 5-15 dB |
+| Ambient | Broadband noise | Full spectrum | 15-25 dB |
+
+The noise is scaled based on the target SNR:
+
+$$y(t) = x(t) + \sqrt{\frac{P_x}{10^{\text{SNR}/10} \cdot P_n}} \cdot n(t)$$
+
+### 3.4 Spectrogram-Level Augmentation (SpecAugment)
+
+For spectrogram-based features (Mel, LFCC, MFCC, CQT), SpecAugment-style masking is applied:
+
+**Frequency Masking:**
+- Probability: 50%
+- Mask width: up to 20 frequency bins
+- Random contiguous frequency bands are set to the mean value
+
+**Time Masking:**
+- Probability: 50%
+- Mask width: up to 50 time steps
+- Random contiguous time segments are set to the mean value
+
+$$\text{Spec}_{\text{masked}}[f_0:f_0+f, :] = \mu_{\text{spec}}$$
+$$\text{Spec}_{\text{masked}}[:, t_0:t_0+t] = \mu_{\text{spec}}$$
+
+where $f \in [1, \min(20, F/4)]$ and $t \in [1, \min(50, T/4)]$.
+
+### 3.5 Augmentation Summary
+
+  | Augmentation | Parameters | Effect |
+ |--------------|------------|--------|
+|   None | - | No augmentation |
+|   Gaussian Noise | SNR: 10-25 dB | Additive noise robustness |
+|  Background Noise | Factor: 0.01-0.05 | Environmental noise |
+|  Reverberation | Factor: 0.3-0.8 | Room acoustics |
+| Pitch Shift | Semitones: ±4 | Speaker variability |
+| Time Stretch | Rate: 0.85-1.15 | Tempo variation |
+| Gain | dB: ±6 | Volume normalization |
+| Low-Pass Filter | Cutoff: 2-6 kHz | Channel simulation |
+| High-Pass Filter | Cutoff: 50-300 Hz | DC removal |
+| RIR Simulation | RT60: 0.1-0.5s | Room acoustics |
+| MUSAN-Style | SNR: 5-25 dB | Realistic noise |
+
 
 ## 4. Network Architectures
 
@@ -980,7 +1012,84 @@ All configurations also include the master random seed value to enable exact rep
 
   
 
-## 13. Conclusion
+## 13. Explainable AI (XAI) Methodology
+
+### 13.1 Motivation and Objectives
+
+Explainability is crucial for audio deepfake detection systems deployed in real-world applications such as forensic analysis, content moderation, and legal proceedings. Understanding *why* a model classifies audio as genuine or synthetic builds trust, enables error analysis, and provides actionable insights for system improvement.
+
+**Key Objectives:**
+1. **Decision Transparency**: Reveal which acoustic regions influence classification
+2. **Feature Attribution**: Identify discriminative spectro-temporal patterns
+3. **Model Debugging**: Detect spurious correlations and dataset biases
+4. **User Trust**: Provide interpretable evidence for non-technical stakeholders
+
+### 13.2 Implemented XAI Methods
+
+The system supports six complementary explainability methods, each providing different insights into model behavior:
+
+| Method | Type | Description |
+|--------|------|-------------|
+| Attention Extraction | Intrinsic | Extracts attention weights from attention layers |
+| Gradient Saliency | Gradient-based | Computes input gradients w.r.t. target class |
+| SmoothGrad | Gradient-based | Noise-averaged gradient saliency |
+| Integrated Gradients | Gradient-based | Path-integrated attributions from baseline |
+| Occlusion Sensitivity | Perturbation-based | Measures prediction change when occluding regions |
+| Grad-CAM | Gradient-based | Class activation mapping via gradient weighting |
+
+#### 13.2.1 Attention Extraction
+
+For architectures with attention mechanisms, attention weights provide inherent interpretability by revealing which temporal or spectral regions the model focuses on during classification.
+
+#### 13.2.2 Gradient Saliency
+
+Computes the gradient of the target class score with respect to input features:
+
+$$S_i = \left|\frac{\partial y^c}{\partial x_i}\right|$$
+
+High gradient magnitudes indicate input regions that strongly influence the prediction.
+
+#### 13.2.3 SmoothGrad
+
+Reduces noise in gradient-based attributions by averaging gradients over multiple noise-perturbed inputs:
+
+$$\hat{S}_i = \frac{1}{N}\sum_{n=1}^{N} \frac{\partial y^c}{\partial (x_i + \epsilon_n)}$$
+
+where $\epsilon_n \sim \mathcal{N}(0, \sigma^2)$ and $N=50$ samples with noise level $\sigma=0.15$.
+
+#### 13.2.4 Integrated Gradients
+
+Provides axiomatic attribution by accumulating gradients along a path from a baseline to the input:
+
+$$\text{IG}_i(x) = (x_i - x_i') \times \int_{\alpha=0}^{1} \frac{\partial F(x' + \alpha(x - x'))}{\partial x_i} d\alpha$$
+
+where $x'$ is typically a zero baseline.
+
+#### 13.2.5 Occlusion Sensitivity
+
+Measures prediction sensitivity by systematically occluding input regions:
+
+$$O_{i,j} = f(x) - f(x_{\text{occluded}}^{i,j})$$
+
+Regions where occlusion causes large prediction changes are considered important.
+
+#### 13.2.6 Grad-CAM
+
+Generates visual explanations using gradients flowing into the last convolutional layer:
+
+$$L_{\text{Grad-CAM}}^c = \text{ReLU}\left(\sum_k \alpha_k^c A^k\right)$$
+
+where $\alpha_k^c = \frac{1}{Z} \sum_i \sum_j \frac{\partial y^c}{\partial A_{ij}^k}$ are importance weights.
+
+### 13.3 Visualization
+
+Attribution maps are visualized as heatmaps overlaid on input spectrograms or waveforms:
+- **High-intensity regions**: Features strongly influencing the prediction
+- **Temporal axis**: Reveals time segments containing artifacts
+- **Frequency axis**: Identifies discriminative frequency bands
+ 
+
+## 14. Conclusion
 
   
 
