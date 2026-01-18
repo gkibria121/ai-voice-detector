@@ -37,7 +37,7 @@ The preprocessing pipeline consists of the following operations:
 **Step 1: Format Conversion**
 **Step 2: Mono Conversion**
 **Step 3: Resampling**
-This sampling rate was selected based on the Nyquist-Shannon sampling theorem, which ensures adequate representation of speech frequencies (typically below 8 kHz) while maintaining computational tractability.
+The sampling rate was selected based on the Nyquist-Shannon sampling theorem, which ensures adequate representation of speech frequencies (typically below 8 kHz) while maintaining computational tractability.
 
 ### 1.3 Fixed-Length Segmentation
   
@@ -146,6 +146,17 @@ $$S_{\log}(m, b) = 10 \log_{10}(S_{\text{mel}}(m, b) + \epsilon)$$
 
 where $\epsilon = 10^{-10}$ prevents numerical instability.
 
+**5. Normalization (Mean-Variance Normalization):**
+
+After logarithmic compression, Mel spectrograms are typically normalized to have zero mean and unit variance:
+
+$$S_norm(m,b) = (S_log(m,b) - μ_b) / σ_b$$
+
+where:
+- $μ_b$ is the mean of the b-th Mel band across all time frames
+- $σ_b$ is the standard deviation of the b-th Mel band across all time frames
+
+
 **Perceptual Motivation:** The Mel scale approximates the non-linear frequency resolution of human hearing, emphasizing perceptually relevant frequencies for speech (300-4000 Hz).
 
 
@@ -244,7 +255,7 @@ where $P_x = \mathbb{E}[x^2(t)]$ is the signal power. SNR is randomly sampled fr
 
 **MUSAN-style Environmental Noise:** Simulates realistic recording conditions by mixing with ambient sound, music, or babble noise at randomly selected SNR levels (5-25 dB). 
 
-**3.2.2 Room Impulse Response (RIR) Simulation 
+**3.2.2 Room Impulse Response (RIR) Simulation**
 
 Acoustic reverberation is modeled by convolving the source signal with a synthetic room impulse response: 
 $$y(t) = x(t) * h(t)$$
