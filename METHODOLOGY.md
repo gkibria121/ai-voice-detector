@@ -375,9 +375,53 @@ where $f \in [1, \min(20, F/4)]$ and $t \in [1, \min(50, T/4)]$.
 
 We employed a diverse set of deep neural network architectures, each offering distinct advantages for audio deepfake detection. The architectures range from lightweight models optimized for real-time inference to deep networks with high representational capacity.
 
-  
+**Feature Compatibility:**
 
-### 4.2 EfficientNet-B2
+| Model | Mel-Spectrogram | LFCC | CQT | Raw Waveform |
+|-------|:---------------:|:----:|:---:|:------------:|
+| EfficientNet-B2 | ✓ | ✓ | ✓ | ✗ |
+| EfficientNet-B2 Attention | ✓ | ✓ | ✓ | ✗ |
+| LCNN | ✓ | ✓ | ✓ | ✗ |
+| SE-ResNet | ✓ | ✓ | ✓ | ✗ |
+| RawNet3 | ✗ | ✗ | ✗ | ✓ |
+| SimpleCNN | ✗ | ✗ | ✗ | ✓ |
+
+Models trained with spectrogram-based features (Mel-Spectrogram, LFCC, CQT) benefit from the complementary information provided by each representation, enabling robust detection across diverse spoofing attack types.
+
+### 4.2 SimpleCNN
+
+**Architecture Description:**
+
+SimpleCNN is a lightweight 1D convolutional neural network designed for processing raw audio waveforms. It serves as a baseline model with minimal computational overhead, suitable for rapid prototyping and real-time inference on resource-constrained devices.
+
+**Key Specifications:**
+- **Input:** Raw Waveform $(B, 64600)$
+- **Parameters:** ~0.3M
+- **Output Embedding:** 128-dimensional feature vector
+
+**Network Structure:**
+
+```
+Input (1, 64600)
+↓
+Conv1D(1→32, k=80, s=4) → BatchNorm → ReLU → MaxPool(4)
+↓
+Conv1D(32→64, k=3, s=1) → BatchNorm → ReLU → MaxPool(4)
+↓
+Conv1D(64→128, k=3, s=1) → BatchNorm → ReLU → MaxPool(4)
+↓
+Adaptive Average Pooling (1)
+↓
+Dropout(0.5) → FC(128→64) → ReLU → Dropout(0.5) → FC(64→2)
+```
+
+**Design Rationale:**
+- The initial large kernel (80 samples) captures low-level acoustic patterns at approximately 5ms temporal resolution at 16 kHz
+- Progressive channel expansion (32 → 64 → 128) increases representational capacity
+- Aggressive pooling reduces computational complexity while maintaining discriminative features
+- High dropout rate (0.5) prevents overfitting given the model's limited capacity
+
+### 4.3 EfficientNet-B2
 
   
 
@@ -391,7 +435,7 @@ EfficientNet-B2 is a compound-scaled convolutional neural network originally dev
 
 **Key Specifications:**
 
-- **Input:** Log-Mel Spectrogram $(B, 1, 128, T)$
+- **Input:**  Log-Mel Spectrogram / LFCC / CQT $(B, 1, F, T)$
 
 - **Backbone:** EfficientNet-B2 (depth=1.1, width=1.1, resolution scaling)
 
@@ -433,9 +477,44 @@ The progressive dimensionality reduction with interleaved regularization prevent
 
 **Transfer Learning Strategy:** Pre-training on ImageNet provides robust low-level feature extractors (edges, textures) that generalize well to spectro-temporal patterns in audio.
 
+### 4.4 EfficientNet-B2 with Attention
+
+**Architecture Description:**
+
+An enhanced variant of EfficientNet-B2 that incorporates attention-based pooling for improved temporal modeling. This architecture is particularly effective when input spectrograms have variable lengths or require fine-grained temporal attention.
+
+**Key Specifications:**
+- **Input:** Log-Mel Spectrogram / LFCC / CQT $(B, 1, F, T)$
+- **Backbone:** EfficientNet-B2 features (without global pooling)
+- **Parameters:** ~9.5M
+- **Output Embedding:** 2816-dimensional feature vector (mean + std concatenation)
+
+**Attention Pooling Mechanism:**
+
+Instead of global average pooling, this variant uses learnable attention weights over spatial dimensions:
+
+1. **Attention Weight Computation:**
+$$\alpha_{h,w} = \frac{\exp(g(\mathbf{F}_{:,h,w}))}{\sum_{h',w'} \exp(g(\mathbf{F}_{:,h',w'}))}$$
+
+where $g(\cdot)$ is a bottleneck attention network: Conv2d(1408 → 128) → ReLU → Conv2d(128 → 1).
+
+2. **Attentive Statistics Pooling:**
+$$\mu_c = \sum_{h,w} \alpha_{h,w} \mathbf{F}_{c,h,w}$$
+$$\sigma_c = \sqrt{\sum_{h,w} \alpha_{h,w} \mathbf{F}_{c,h,w}^2 - \mu_c^2}$$
+$$\mathbf{v} = [\mu; \sigma]$$
+
+The concatenation of attention-weighted mean and standard deviation provides a richer representation that captures both central tendency and variability of feature activations.
+
+**Custom Classification Head:**
+```
+Input (2816) → Dropout(0.3) → Linear(512) → BatchNorm → ReLU
+→ Dropout(0.3) → Linear(256) → BatchNorm → ReLU
+→ Dropout(0.3) → Linear(2)
+```
+
   
 
-### 4.3 Light CNN (LCNN)
+### 4.5 Light CNN (LCNN)
 
   
 
@@ -444,6 +523,12 @@ The progressive dimensionality reduction with interleaved regularization prevent
   
 
 LCNN employs Max-Feature-Map (MFM) activation functions instead of traditional ReLU. MFM acts as a learnable feature selection mechanism, particularly effective for spoofing detection where discriminative artifact selection is crucial.
+
+**Key Specifications:**
+- **Input:** Log-Mel Spectrogram / LFCC / CQT $(B, 1, 128, T)$
+- **Backbone:** 4-stage LCNN with MFM activations
+- **Parameters:** ~0.8M
+- **Output Embedding:** 128-dimensional feature vector
 
   
 
@@ -521,13 +606,37 @@ $$\mathbf{v} = [\mu; \sigma]$$
 
 where $\phi$ is a learned transformation and $[\cdot; \cdot]$ denotes concatenation.
 
+**LCNN Backbone Architecture:**
+
+The backbone consists of four stages with progressively learned feature representations:
+
+| Stage | Channels | Operations |
+|-------|----------|------------|
+| 0 | 32 | Conv-MFM(5×5) → MaxPool(2×2) |
+| 1 | 48 | Conv-MFM(3×3) → ResBlock-MFM → MaxPool(2×2) |
+| 2 | 64 | Conv-MFM(3×3) → ResBlock-MFM → MaxPool(2×2) |
+| 3 | 32 | Conv-MFM(3×3) → ResBlock-MFM → Conv-MFM(1×1) |
+
+**Embedding Projection:**
+```
+AttentiveStatPool (64) → Linear(128) → MFM1D → BatchNorm(64)
+→ Dropout(0.3) → Linear(256) → BatchNorm → ReLU
+→ Dropout(0.3) → Linear(2)
+```
+
   
 
-### 4.4 RawNet3
+### 4.6 RawNet3
 
 **Architecture Description:**
 
 RawNet3 processes raw waveforms directly, eliminating handcrafted feature extraction. This end-to-end approach allows the network to learn optimal representations for the task.
+
+**Key Specifications:**
+- **Input:** Raw Waveform $(B, 64600)$
+- **Backbone:** Sinc convolution + Res2Net blocks
+- **Parameters:** ~2.5M
+- **Output Embedding:** 512-dimensional feature vector
 
 **Key Components:**
 
@@ -538,17 +647,41 @@ $$h[n] = 2f_c \text{sinc}(2\pi f_c n) \cdot w[n]$$
 
   
 
-where $f_c$ is the learnable cutoff frequency and $w[n]$ is a Hamming window.
+where $f_c$ is the learnable cutoff frequency and $w[n]$ is a Hamming window. The layer uses 64 filters with kernel size 251, initialized with Mel-scale frequency spacing.
+
+2. **Res2Net Blocks:** Multi-scale feature extraction with hierarchical residual-like connections:
+   - Split input channels into $s=4$ groups
+   - Apply 3×1 convolutions with inter-group fusion
+   - Concatenate outputs for multi-scale representation
+
+3. **Encoder Structure:**
+```
+SincConv(64) → |Abs| → Res2Net(64→64) → AvgPool(3,2)
+→ Res2Net(64→128) → AvgPool(3,2)
+→ Res2Net(128→256) → AvgPool(3,2)
+→ Res2Net(256→512) → AvgPool(3,2)
+```
+
+4. **Attention Pooling:** Temporal attention followed by fully connected projection:
+$$\alpha_t = \text{softmax}(\tanh(W_1 h_t) \cdot W_2)$$
+$$\mathbf{e} = \sum_t \alpha_t h_t$$
+
+**Classifier Head:**
+```
+Embedding (512) → Linear(256) → ReLU → Dropout(0.3) → Linear(2)
+```
  
-2. **Residual Blocks with Squeeze-and-Excitation:** Channel-wise attention recalibrates feature maps.
- 
-3. **Gated Recurrent Units (GRU):** Captures long-range temporal dependencies.
- 
-### 4.5 SE-ResNet
+### 4.7 SE-ResNet
  
 **Architecture Description:**
  
 Squeeze-and-Excitation ResNet incorporates channel-wise attention mechanisms into the residual learning framework.
+
+**Key Specifications:**
+- **Input:** Log-Mel Spectrogram / LFCC / CQT $(B, 1, 128, T)$
+- **Backbone:** ResNet-34 style with SE blocks
+- **Parameters:** ~11.2M
+- **Output Embedding:** 1024-dimensional feature vector (mean + std)
  
 
 **SE Block:** 
@@ -556,7 +689,45 @@ Squeeze-and-Excitation ResNet incorporates channel-wise attention mechanisms int
 $$\tilde{\mathbf{F}}_c = \mathbf{F}_c \cdot \sigma(W_2 \delta(W_1 \mathbf{z}))$$
  
 
-where $\mathbf{z} = \frac{1}{HW}\sum_{h,w} \mathbf{F}_{c,h,w}$ is global average pooling, $\delta$ is ReLU, $\sigma$ is sigmoid, and $W_1, W_2$ are learned projections.
+where $\mathbf{z} = \frac{1}{HW}\sum_{h,w} \mathbf{F}_{c,h,w}$ is global average pooling, $\delta$ is ReLU, $\sigma$ is sigmoid, and $W_1, W_2$ are learned projections with reduction ratio $r=16$.
+
+**Network Structure:**
+
+| Stage | Layers | Channels | Stride |
+|-------|--------|----------|--------|
+| Stem | Conv(7×7) → BN → ReLU → MaxPool(3×3) | 64 | 2 |
+| Layer 1 | 3 × BasicBlockSE | 64 | 1 |
+| Layer 2 | 4 × BasicBlockSE | 128 | 2 |
+| Layer 3 | 6 × BasicBlockSE | 256 | 2 |
+| Layer 4 | 3 × BasicBlockSE | 512 | 2 |
+
+**BasicBlockSE Structure:**
+```
+x → Conv(3×3) → BN → ReLU → Conv(3×3) → BN → SE → (+x) → ReLU
+```
+
+**Attentive Statistics Pooling:**
+
+After the backbone, the frequency axis is collapsed via mean pooling, and attentive statistics pooling is applied over the temporal axis:
+
+$$\mathbf{v} = [\mu_{\text{att}}; \sigma_{\text{att}}] \in \mathbb{R}^{1024}$$
+
+**Classifier Head:**
+```
+Embedding (1024) → Linear(512) → BatchNorm → ReLU → Dropout(0.3)
+→ Linear(256) → BatchNorm → ReLU → Dropout(0.3) → Linear(2)
+```
+
+### 4.8 Model Comparison Summary
+
+| Model | Input Type | Parameters | Embedding Dim | Key Advantage |
+|-------|------------|------------|---------------|---------------|
+| SimpleCNN | Raw | ~0.3M | 128 | Lightweight, fast inference |
+| EfficientNet-B2 | Spectrogram | ~9.2M | 1408 | Transfer learning from ImageNet |
+| EfficientNet-B2 Attention | Spectrogram | ~9.5M | 2816 | Attention-based temporal modeling |
+| LCNN | Spectrogram | ~0.8M | 128 | MFM feature selection |
+| RawNet3 | Raw | ~2.5M | 512 | End-to-end learnable filters |
+| SE-ResNet | Spectrogram | ~11.2M | 1024 | Channel attention + deep residual |
 
 
 ## 5. Experimental Setup
