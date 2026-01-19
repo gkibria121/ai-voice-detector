@@ -1124,9 +1124,52 @@ $$\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}$$
 
 where decisions are made using the EER threshold $\theta^*$.
 
+### 10.3 Confusion Matrix
+
+The confusion matrix provides a detailed breakdown of classification outcomes:
+
+|  | Predicted Fake | Predicted Real |
+|--|----------------|----------------|
+| **Actual Fake** | True Negative (TN) | False Positive (FP) |
+| **Actual Real** | False Negative (FN) | True Positive (TP) |
+
+This matrix enables calculation of class-specific error rates and identification of systematic misclassification patterns.
+
+### 10.4 Precision, Recall, and F1-Score
+
+**Per-Class Metrics:**
+
+$$\text{Precision}_c = \frac{TP_c}{TP_c + FP_c}$$
+
+$$\text{Recall}_c = \frac{TP_c}{TP_c + FN_c}$$
+
+$$\text{F1}_c = 2 \cdot \frac{\text{Precision}_c \cdot \text{Recall}_c}{\text{Precision}_c + \text{Recall}_c}$$
+
+**Macro-Averaged Metrics:**
+
+$$\text{Precision}_{\text{macro}} = \frac{1}{C}\sum_{c=1}^{C} \text{Precision}_c$$
+
+These metrics provide insight into per-class performance, particularly useful when class distributions are imbalanced.
+
+### 10.5 ROC Curve and AUC
+
+The Receiver Operating Characteristic (ROC) curve plots True Positive Rate against False Positive Rate across all decision thresholds:
+
+$$\text{TPR}(\theta) = \frac{TP(\theta)}{TP(\theta) + FN(\theta)}$$
+
+$$\text{FPR}(\theta) = \frac{FP(\theta)}{FP(\theta) + TN(\theta)}$$
+
+The Area Under the ROC Curve (AUC) provides a single scalar summary of classifier performance:
+
+$$\text{AUC} = \int_0^1 \text{TPR}(\text{FPR}^{-1}(t)) \, dt$$
+
+- AUC = 1.0: Perfect classifier
+- AUC = 0.5: Random classifier
+- AUC > 0.9: Excellent performance
+
   
 
-### 10.3 Detection Error Tradeoff (DET) Curve
+### 10.6 Detection Error Tradeoff (DET) Curve
 
   
 
@@ -1139,6 +1182,19 @@ $$\text{DET}: \Phi^{-1}(\text{FRR}(\theta)) \text{ vs. } \Phi^{-1}(\text{FAR}(\t
   
 
 where $\Phi^{-1}$ is the inverse standard normal CDF.
+
+The DET curve provides better visualization of error trade-offs at low error rates compared to ROC curves.
+
+### 10.7 Metrics Summary Table
+
+| Metric | Primary Use | Threshold-Dependent |
+|--------|-------------|---------------------|
+| EER | Model selection, benchmark comparison | No (uses optimal threshold) |
+| Accuracy | Intuitive performance measure | Yes (uses EER threshold) |
+| Confusion Matrix | Error analysis | Yes |
+| Precision/Recall/F1 | Per-class performance | Yes |
+| ROC AUC | Overall discrimination ability | No |
+| DET Curve | Error trade-off visualization | No |
 
  
   
