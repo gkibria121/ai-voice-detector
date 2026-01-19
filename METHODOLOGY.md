@@ -906,8 +906,69 @@ The model checkpoint yielding the lowest EER on the validation set is selected f
    
 Ensemble methods reduce prediction variance and improve robustness by combining predictions from multiple models trained with different initializations, architectures, or hyperparameters.
 
-   
-### 8.2 Soft Voting
+### 8.2 Implementation Architecture
+
+The system implements an `EnsembleModel` wrapper class that unifies multiple heterogeneous models into a single cohesive unit. This design allows seamless integration with the existing training and inference pipelines.
+
+**Key Design Features:**
+
+1. **Heterogeneous Model Support:** The ensemble accepts models with different architectures, embedding dimensions, and feature extractors.
+
+2. **Unified Interface:** The wrapper exposes the same `forward(x, Freq_aug)` interface as individual models, returning `(embeddings, logits)`.
+
+3. **Automatic Embedding Projection:** Since different architectures produce embeddings of varying dimensions (e.g., LCNN: 128, EfficientNet-B2: 1408, SE-ResNet: 1024), learned linear projections map each embedding to a common target dimension before averaging.
+
+### 8.3 Ensemble Configuration Format
+
+Ensembles are configured via JSON configuration files with a list of model configurations:
+
+```json
+{
+    "model_config": [
+        {
+            "architecture": "LCNN",
+            "channels": [32, 48, 64, 32],
+            "dropout": 0.3,
+            "use_residual": true,
+            "att_bottleneck": 64,
+            "emb_dim": 128
+        },
+        {
+            "architecture": "SEResNet",
+            "dropout": 0.3,
+            "emb_dim": 128
+        },
+        {
+            "architecture": "EfficientNetB2",
+            "model_variant": "attention",
+            "dropout": 0.4,
+            "pretrained": true,
+            "att_bottleneck": 128
+        }
+    ]
+}
+```
+
+Each entry in the `model_config` array specifies a complete model configuration including architecture type, hyperparameters, and optional variants.
+
+### 8.4 Embedding Dimension Harmonization
+
+To handle heterogeneous embedding dimensions across models, the ensemble employs learned projection layers:
+
+**Target Dimension Selection:**
+$$D_{\text{target}} = \max_{m \in \mathcal{M}} D_m$$
+
+where $D_m$ is the embedding dimension of model $m$ and $\mathcal{M}$ is the set of ensemble members.
+
+**Projection Function:**
+$$\mathbf{e}_m^{\text{proj}} = \begin{cases}
+\mathbf{e}_m & \text{if } D_m = D_{\text{target}} \\
+W_m \mathbf{e}_m + \mathbf{b}_m & \text{otherwise}
+\end{cases}$$
+
+where $W_m \in \mathbb{R}^{D_{\text{target}} \times D_m}$ is a learned projection matrix initialized with Xavier uniform, and $\mathbf{b}_m$ is a zero-initialized bias.
+
+### 8.5 Soft Voting (Logit Averaging)
  
 
 Given $M$ trained models $\{f_1, \ldots, f_M\}$, the ensemble prediction is computed via soft voting: 
@@ -917,9 +978,16 @@ $$p_{\text{ensemble}}(y|\mathbf{x}) = \frac{1}{M}\sum_{m=1}^{M} p_m(y|\mathbf{x}
   
 
 $$\hat{y} = \arg\max_y p_{\text{ensemble}}(y|\mathbf{x})$$
+
+**Implementation:**
+The logits from each model are stacked and averaged before softmax:
+```
+logits_stacked = torch.stack([out_1, out_2, ..., out_M], dim=0)  # (M, B, C)
+avg_logits = torch.mean(logits_stacked, dim=0)                   # (B, C)
+```
  
 
-### 8.3 Score-Level Fusion
+### 8.6 Score-Level Fusion
  
 For EER evaluation, scores are averaged:
  
@@ -927,19 +995,43 @@ $$s_{\text{ensemble}}(\mathbf{x}) = \frac{1}{M}\sum_{m=1}^{M} s_m(\mathbf{x})$$
  
 
 This provides a robust aggregate score for threshold-based decision-making.
+
+### 8.7 Embedding Fusion
+
+Embeddings are fused for use in downstream tasks (e.g., explainability, visualization):
+
+$$\mathbf{e}_{\text{ensemble}} = \frac{1}{M}\sum_{m=1}^{M} \mathbf{e}_m^{\text{proj}}$$
+
+The averaged embedding preserves information from all constituent models while maintaining a consistent dimensionality.
  
-### 8.4 Ensemble Configuration
+### 8.8 Best-Performing Ensemble Configuration
  
 
 Our best-performing ensemble consists of:
 
-1. LCNN (Mel-spectrogram)
+| Model | Feature | Parameters | Embedding Dim | Role |
+|-------|---------|------------|---------------|------|
+| LCNN | Mel-spectrogram | ~0.8M | 128 | Lightweight artifact detector with MFM |
+| SE-ResNet | Mel-spectrogram | ~11.2M | 1024 | Deep residual features with channel attention |
+| EfficientNet-B2 (Attention) | Mel-spectrogram | ~9.5M | 2816 | Transfer learning + spatial attention |
 
-2. SEResNet (Mel-spectrogram)
-
-3. EfficientNetB2 attention (Mel-spectrogram)
+**Total Ensemble Parameters:** ~21.5M
  
-This combination leverages complementary architectural inductive biases.
+This combination leverages complementary architectural inductive biases:
+- **LCNN** excels at detecting local spectral artifacts through competitive MFM activations
+- **SE-ResNet** captures hierarchical temporal patterns with channel-wise attention
+- **EfficientNet-B2** provides robust low-level features from ImageNet pretraining with learnable spatial attention
+
+### 8.9 Ensemble Training Strategy
+
+The ensemble is trained end-to-end with all models receiving the same input and gradients flowing through all branches:
+
+1. **Shared Input:** All models process the same preprocessed spectrogram
+2. **Independent Forward Pass:** Each model computes its own embeddings and logits
+3. **Joint Loss:** The averaged logits are used to compute the cross-entropy loss
+4. **Unified Backpropagation:** Gradients propagate through all models simultaneously
+
+This joint training allows models to specialize and capture complementary features rather than redundant patterns.
 
 
 ## 9. Inference Pipeline
