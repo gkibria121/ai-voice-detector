@@ -31,217 +31,78 @@
 ## System Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│                        AUDIO DEEPFAKE DETECTION PIPELINE                                │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
+                    ╔═══════════════════════════════════════════════════╗
+                    ║        AUDIO DEEPFAKE DETECTION PIPELINE          ║
+                    ╚═══════════════════════════════════════════════════╝
+                                           │
+        ┌──────────────────────────────────┼──────────────────────────────────┐
+        ▼                                  ▼                                  ▼
+  ┌───────────┐                     ┌───────────┐                      ┌───────────┐
+  │   DATA    │                     │  FEATURE  │                      │   DATA    │
+  │PREPARATION│────────────────────▶│EXTRACTION │─────────────────────▶│AUGMENT    │
+  ├───────────┤                     ├───────────┤                      ├───────────┤
+  │ Load Audio│                     │ Raw Wave  │                      │ Noise     │
+  │ Resample  │                     │ Mel-Spec  │                      │ Pitch     │
+  │ Normalize │                     │ LFCC/CQT  │                      │ SpecAug   │
+  └───────────┘                     └───────────┘                      └─────┬─────┘
+                                                                             │
+        ┌────────────────────────────────────────────────────────────────────┘
+        ▼
+  ┌─────────────────────────────────────────────────────────────────────────────────┐
+  │                            NEURAL NETWORK MODELS                                │
+  ├──────────┬───────────┬───────────┬───────────┬───────────┬────────────────────┤
+  │ SimpleCNN│EfficientB2│   LCNN    │  RawNet3  │ SE-ResNet │     ENSEMBLE       │
+  └──────────┴───────────┴───────────┴───────────┴───────────┴────────────────────┘
+                                           │
+        ┌──────────────────────────────────┼──────────────────────────────────┐
+        ▼                                  ▼                                  ▼
+  ┌───────────┐                     ┌───────────┐                      ┌───────────┐
+  │ TRAINING  │                     │VALIDATION │                      │ INFERENCE │
+  ├───────────┤                     ├───────────┤                      ├───────────┤
+  │ Adam+AMP  │                     │ EER Check │                      │ Decision  │
+  │ LR Sched  │                     │ Best Model│                      │ Confidence│
+  │ Regularize│                     │ Selection │                      │ XAI Output│
+  └───────────┘                     └───────────┘                      └─────┬─────┘
+                                                                             │
+                                           ┌─────────────────────────────────┘
+                                           ▼
+                                    ┌─────────────┐
+                                    │ EVALUATION  │
+                                    ├─────────────┤
+                                    │ EER • AUC   │
+                                    │ Accuracy    │
+                                    │ F1-Score    │
+                                    └─────────────┘
+```
 
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│  PHASE 1: DATA PREPARATION                                                              │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                         │
-│   ┌─────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────────┐      │
-│   │ Audio Input │───▶│ Load & Decode│───▶│ Mono Convert │───▶│ Resample (16kHz) │      │
-│   │ (WAV/FLAC)  │    │ (soundfile)  │    │ (stereo→mono)│    │                  │      │
-│   └─────────────┘    └──────────────┘    └──────────────┘    └────────┬─────────┘      │
-│                                                                        │                │
-│                                          ┌────────────────────────────▼────────────┐   │
-│                                          │    Fixed-Length Segmentation (64,600)   │   │
-│                                          │  ┌─────────────┐    ┌─────────────────┐ │   │
-│                                          │  │ Short: Pad  │    │ Long: Crop      │ │   │
-│                                          │  │ (repetition)│    │ (random/center) │ │   │
-│                                          │  └─────────────┘    └─────────────────┘ │   │
-│                                          └─────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
-                                                    │
-                                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│  PHASE 2: FEATURE EXTRACTION                                                            │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                         │
-│   ┌─────────────────────────────────────────────────────────────────────────────────┐  │
-│   │                         Acoustic Feature Representations                        │  │
-│   ├─────────────────────────────────────────────────────────────────────────────────┤  │
-│   │                                                                                 │  │
-│   │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │  │
-│   │  │    Raw      │  │  Log-Mel    │  │    LFCC     │  │    CQT      │            │  │
-│   │  │  Waveform   │  │ Spectrogram │  │ (13 coeff)  │  │ (84 bins)   │            │  │
-│   │  │  (64,600)   │  │ (128 × T)   │  │ (13 × T)    │  │ (84 × T)    │            │  │
-│   │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘            │  │
-│   │         │                │                │                │                   │  │
-│   │         ▼                └────────────────┼────────────────┘                   │  │
-│   │   ┌──────────┐                           ▼                                     │  │
-│   │   │ RawNet3  │               ┌─────────────────────┐                           │  │
-│   │   │SimpleCNN │               │ Multi-Modal Fusion  │                           │  │
-│   │   └──────────┘               │ (Channel Concat)    │                           │  │
-│   │                              └─────────────────────┘                           │  │
-│   └─────────────────────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
-                                                    │
-                                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│  PHASE 3: DATA AUGMENTATION (Training Only)                                             │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                         │
-│   ┌─────────────────────────────┐    ┌──────────────────────────────────────────────┐  │
-│   │  Waveform Augmentations     │    │  Spectrogram Augmentations (SpecAugment)     │  │
-│   ├─────────────────────────────┤    ├──────────────────────────────────────────────┤  │
-│   │ • Gaussian Noise (10-25dB)  │    │ • Frequency Masking (up to 20 bins)          │  │
-│   │ • Background Noise          │    │ • Time Masking (up to 50 frames)             │  │
-│   │ • Reverberation (RIR)       │    │                                              │  │
-│   │ • Pitch Shift (±4 semitones)│    │                                              │  │
-│   │ • Time Stretch (0.85-1.15×) │    │  Application: p=0.5 per mask type            │  │
-│   │ • Gain (±6 dB)              │    │                                              │  │
-│   │ • Low/High-Pass Filters     │    │                                              │  │
-│   │ • MUSAN-Style Noise         │    │                                              │  │
-│   ├─────────────────────────────┤    └──────────────────────────────────────────────┘  │
-│   │ Application: p=0.8          │                                                      │
-│   │ Compose: 1-2 augmentations  │                                                      │
-│   └─────────────────────────────┘                                                      │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
-                                                    │
-                                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│  PHASE 4: NEURAL NETWORK ARCHITECTURES                                                  │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                         │
-│   ┌───────────────────────────────────────────────────────────────────────────────┐    │
-│   │                           Model Zoo                                           │    │
-│   ├───────────────┬──────────────┬──────────────┬──────────────┬─────────────────┤    │
-│   │   SimpleCNN   │ EfficientNet │     LCNN     │   RawNet3    │   SE-ResNet     │    │
-│   │    (~0.3M)    │  B2 (~9.2M)  │   (~0.8M)    │   (~2.5M)    │   (~11.2M)      │    │
-│   ├───────────────┼──────────────┼──────────────┼──────────────┼─────────────────┤    │
-│   │ 1D Conv       │ ImageNet     │ MFM          │ Sinc Conv    │ SE Blocks       │    │
-│   │ Raw Waveform  │ Transfer     │ Activations  │ Res2Net      │ Channel Attn    │    │
-│   │               │ + Attention  │ Attn Pool    │ End-to-End   │ Deep Residual   │    │
-│   └───────────────┴──────────────┴──────────────┴──────────────┴─────────────────┘    │
-│                                          │                                             │
-│                                          ▼                                             │
-│                           ┌──────────────────────────┐                                 │
-│                           │    ENSEMBLE MODEL        │                                 │
-│                           │ ┌──────────────────────┐ │                                 │
-│                           │ │ Embedding Projection │ │                                 │
-│                           │ │ Logit Averaging      │ │                                 │
-│                           │ │ Soft Voting          │ │                                 │
-│                           │ └──────────────────────┘ │                                 │
-│                           └──────────────────────────┘                                 │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
-                                                    │
-                                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│  PHASE 5: TRAINING & OPTIMIZATION                                                       │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                         │
-│   ┌─────────────────────────────────────────────────────────────────────────────────┐  │
-│   │                              Training Loop                                      │  │
-│   ├─────────────────────────────────────────────────────────────────────────────────┤  │
-│   │                                                                                 │  │
-│   │  ┌─────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────────┐   │  │
-│   │  │ Forward │──▶│  Loss    │──▶│ Backward │──▶│ Gradient │──▶│   Optimizer  │   │  │
-│   │  │  Pass   │   │ (WCE)    │   │   Pass   │   │   Clip   │   │    (Adam)    │   │  │
-│   │  └─────────┘   └──────────┘   └──────────┘   └──────────┘   └──────────────┘   │  │
-│   │                                                                                 │  │
-│   └─────────────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                         │
-│   ┌─────────────────────┐  ┌─────────────────────┐  ┌───────────────────────────────┐  │
-│   │ Mixed Precision     │  │ Learning Rate       │  │ Regularization                │  │
-│   │ • BF16/FP16 (AMP)   │  │ • Cosine Annealing  │  │ • Dropout (p=0.3)             │  │
-│   │ • TF32 on Ampere+   │  │ • η: 1e-4 → 1e-6    │  │ • Weight Decay (1e-4)         │  │
-│   │ • Gradient Scaling  │  │ • Step-wise updates │  │ • Gradient Clipping (1.0)     │  │
-│   └─────────────────────┘  └─────────────────────┘  └───────────────────────────────┘  │
-│                                                                                         │
-│   ┌─────────────────────────────────────────────────────────────────────────────────┐  │
-│   │ Advanced: Stochastic Weight Averaging (SWA) - Epochs 10-20                      │  │
-│   └─────────────────────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
-                                                    │
-                                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│  PHASE 6: VALIDATION & MODEL SELECTION                                                  │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                         │
-│   ┌─────────────────────────────────────────────────────────────────────────────────┐  │
-│   │                           Validation Pipeline                                   │  │
-│   │                                                                                 │  │
-│   │   ┌──────────────┐    ┌──────────────┐    ┌───────────────┐    ┌────────────┐  │  │
-│   │   │ Dev Set      │───▶│ Model        │───▶│ Score         │───▶│ Compute    │  │  │
-│   │   │ Inference    │    │ Predictions  │    │ Generation    │    │ EER        │  │  │
-│   │   └──────────────┘    └──────────────┘    └───────────────┘    └─────┬──────┘  │  │
-│   │                                                                       │         │  │
-│   │                                            ┌──────────────────────────▼──────┐  │  │
-│   │                                            │   Best Model Checkpoint         │  │  │
-│   │                                            │   (Lowest Dev EER)              │  │  │
-│   │                                            └─────────────────────────────────┘  │  │
-│   └─────────────────────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
-                                                    │
-                                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│  PHASE 7: EVALUATION METRICS                                                            │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                         │
-│   ┌─────────────────────────────────────────────────────────────────────────────────┐  │
-│   │                                                                                 │  │
-│   │  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐    │  │
-│   │  │     EER       │  │   Accuracy    │  │   ROC/AUC     │  │  DET Curve    │    │  │
-│   │  │  (Primary)    │  │ (@ EER θ)     │  │               │  │               │    │  │
-│   │  └───────────────┘  └───────────────┘  └───────────────┘  └───────────────┘    │  │
-│   │                                                                                 │  │
-│   │  ┌───────────────┐  ┌───────────────┐  ┌───────────────────────────────────┐   │  │
-│   │  │  Confusion    │  │  Precision    │  │  Per-Class F1-Score               │   │  │
-│   │  │   Matrix      │  │  Recall       │  │  (Fake/Real)                      │   │  │
-│   │  └───────────────┘  └───────────────┘  └───────────────────────────────────┘   │  │
-│   │                                                                                 │  │
-│   └─────────────────────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
-                                                    │
-                                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│  PHASE 8: INFERENCE & EXPLAINABILITY                                                    │
-├─────────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                         │
-│   ┌─────────────────────────────────────────────────────────────────────────────────┐  │
-│   │                          Production Inference                                   │  │
-│   │                                                                                 │  │
-│   │   ┌────────────┐   ┌─────────────┐   ┌───────────────┐   ┌──────────────────┐  │  │
-│   │   │   Audio    │──▶│ Preprocess  │──▶│   Extract     │──▶│     Model        │  │  │
-│   │   │   Input    │   │ (16kHz,mono)│   │   Features    │   │   Inference      │  │  │
-│   │   └────────────┘   └─────────────┘   └───────────────┘   └────────┬─────────┘  │  │
-│   │                                                                    │            │  │
-│   │                    ┌───────────────────────────────────────────────▼──────────┐ │  │
-│   │                    │                      Output                              │ │  │
-│   │                    │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐  │ │  │
-│   │                    │  │  Decision   │  │ Confidence  │  │   Embeddings    │  │ │  │
-│   │                    │  │ (Real/Fake) │  │   Score     │  │  (for XAI)      │  │ │  │
-│   │                    │  └─────────────┘  └─────────────┘  └─────────────────┘  │ │  │
-│   │                    └──────────────────────────────────────────────────────────┘ │  │
-│   └─────────────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                         │
-│   ┌─────────────────────────────────────────────────────────────────────────────────┐  │
-│   │                        Explainability Methods (XAI)                             │  │
-│   │                                                                                 │  │
-│   │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │  │
-│   │  │  Attention   │  │   Gradient   │  │  Integrated  │  │   Grad-CAM   │        │  │
-│   │  │  Extraction  │  │   Saliency   │  │  Gradients   │  │              │        │  │
-│   │  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘        │  │
-│   │                                                                                 │  │
-│   │  ┌──────────────┐  ┌──────────────┐                                            │  │
-│   │  │  SmoothGrad  │  │  Occlusion   │  ────▶  Heatmap Visualization              │  │
-│   │  │              │  │  Sensitivity │                                            │  │
-│   │  └──────────────┘  └──────────────┘                                            │  │
-│   └─────────────────────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
+## Inference Pipeline
+
+```
+  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+  │ Audio File  │─────▶│  Preprocess │─────▶│   Extract   │─────▶│    Model    │
+  │  (input)    │      │  16kHz/Mono │      │  Features   │      │  Forward    │
+  └─────────────┘      └─────────────┘      └─────────────┘      └──────┬──────┘
+                                                                        │
+       ┌────────────────────────────────────────────────────────────────┘
+       ▼
+  ┌─────────────┐      ┌─────────────┐      ┌─────────────────────────────────┐
+  │   Softmax   │─────▶│  Threshold  │─────▶│           OUTPUT                │
+  │   Scores    │      │   (0.5)     │      │  Label: REAL/FAKE               │
+  └─────────────┘      └─────────────┘      │  Confidence: 0.0 - 1.0          │
+                                            │  XAI: Attention/GradCAM Heatmap │
+                                            └─────────────────────────────────┘
 ```
 
 ---
- 
-
 
 ## 1. Data Preparation and Preprocessing
-### 1.1 Dataset Description 
+
+### 1.1 Dataset Description
 
 The system was developed and evaluated using the "Fake-or-Real" dataset, which consists of bonafide (genuine human) and spoofed (synthetically generated) audio recordings. The dataset is organized into training, validation, and testing partitions, with balanced representation of both classes to facilitate unbiased model learning.
 
-### 1.2 Audio Loading and Standardization 
+### 1.2 Audio Loading and Standardization
+
 All audio samples undergo standardized preprocessing to ensure consistency across the pipeline. Audio files are loaded using the `soundfile` library, which provides automatic format detection and efficient decoding for multiple audio formats including WAV, FLAC, and MP3.
 The preprocessing pipeline consists of the following operations:
 **Step 1: Format Conversion**
@@ -250,10 +111,8 @@ The preprocessing pipeline consists of the following operations:
 The sampling rate was selected based on the Nyquist-Shannon sampling theorem, which ensures adequate representation of speech frequencies (typically below 8 kHz) while maintaining computational tractability.
 
 ### 1.3 Fixed-Length Segmentation
-  
 
 To facilitate batch processing and ensure consistent input dimensions for neural network training, all audio signals are processed to a fixed length of 64,600 samples, corresponding to approximately 4.04 seconds at 16 kHz sampling rate. This duration was empirically determined to capture sufficient contextual information for classification while maintaining computational efficiency.
-  
 
 For audio segments shorter than the target length ($L < 64600$), we employ a repetition-based padding technique.
 
@@ -261,98 +120,65 @@ For audio segments exceeding the target length ($L > 64600$), two strategies are
 
 1. **Training Phase:** Random cropping to introduce variability and prevent overfitting.
 2. **Inference Phase:** Center cropping for deterministic evaluation.
- 
-### 1.4 Batch Processing Configuration
 
-  
+### 1.4 Batch Processing Configuration
 
 The DataLoader configuration was optimized for both training efficiency and reproducibility:
 
-  
-
-| Parameter | Value | Rationale | 
-|-----------|-------|-----------| 
-| `batch_size` | 32 | Balanced GPU memory utilization and gradient stability | 
-| `num_workers` | 4 | Parallel data loading to prevent I/O bottlenecks | 
-| `pin_memory` | True | Accelerated CPU-to-GPU transfers | 
-| `persistent_workers` | True | Reduced worker initialization overhead | 
-| `prefetch_factor` | 2 | Overlapped data loading with computation | 
-| `drop_last` | True (train) | Consistent batch sizes for BatchNorm stability | 
-  
+| Parameter            | Value        | Rationale                                              |
+| -------------------- | ------------ | ------------------------------------------------------ |
+| `batch_size`         | 32           | Balanced GPU memory utilization and gradient stability |
+| `num_workers`        | 4            | Parallel data loading to prevent I/O bottlenecks       |
+| `pin_memory`         | True         | Accelerated CPU-to-GPU transfers                       |
+| `persistent_workers` | True         | Reduced worker initialization overhead                 |
+| `prefetch_factor`    | 2            | Overlapped data loading with computation               |
+| `drop_last`          | True (train) | Consistent batch sizes for BatchNorm stability         |
 
 Worker initialization employs deterministic seeding to ensure reproducibility.
 
 ## 2. Feature Extraction
 
-
 ### 2.1 Overview of Acoustic Representations
- 
 
 The system supports multiple acoustic feature representations, each capturing different aspects of audio characteristics relevant to deepfake detection. The feature extraction strategy is configurable, enabling comparative analysis and multi-modal fusion.
- 
-  
 
-| Feature Name | Dimensionality | Primary Application | 
-|-------------|----------------|---------------------| 
-| Raw Waveform | $(N,)$ | End-to-end learning | 
-| Log-Mel Spectrogram | $(128, T)$ | General-purpose CNN models | 
-| LFCC | $(13, T)$ | Anti-spoofing (linear frequency) | 
-| MFCC | $(13, T)$ | Traditional speech processing | 
-| CQT | $(84, T)$ | Harmonic and tonal analysis | 
-
-  
+| Feature Name        | Dimensionality | Primary Application              |
+| ------------------- | -------------- | -------------------------------- |
+| Raw Waveform        | $(N,)$         | End-to-end learning              |
+| Log-Mel Spectrogram | $(128, T)$     | General-purpose CNN models       |
+| LFCC                | $(13, T)$      | Anti-spoofing (linear frequency) |
+| MFCC                | $(13, T)$      | Traditional speech processing    |
+| CQT                 | $(84, T)$      | Harmonic and tonal analysis      |
 
 where $N$ denotes the number of samples (64,600) and $T$ represents the temporal dimension (varies by feature type).
 
-
-
-### 2.2 Log-Mel Spectrogram  
-
-  
+### 2.2 Log-Mel Spectrogram
 
 The Log-Mel Spectrogram serves as the primary feature representation for CNN-based architectures. This transformation converts the time-domain signal into a time-frequency representation that approximates human auditory perception.
 
-  
-
 **Mathematical Formulation:**
 
-  
-
 The extraction process involves five sequential transformations:
-
-  
 
 **1. Short-Time Fourier Transform (STFT):**
 
 $$X(m, k) = \sum_{n=0}^{N-1} x(n + mH) w(n) e^{-j2\pi kn/N}$$
 
-  
-
 where $w(n)$ is the Hann window, $H$ is the hop length (160 samples), and $N$ is the FFT size (512).
-
-  
 
 **2. Power Spectrum:**
 
 $$P(m, k) = |X(m, k)|^2$$
 
-  
-
 **3. Mel Filterbank Application:**
 
 $$S_{\text{mel}}(m, b) = \sum_{k=0}^{N/2} P(m, k) \cdot H_b(k)$$
 
-  
-
 where $H_b(k)$ represents the $b$-th triangular Mel filter ($b = 1, \ldots, 128$).
-
-  
 
 **4. Logarithmic Compression:**
 
 $$S_{\log}(m, b) = 10 \log_{10}(S_{\text{mel}}(m, b) + \epsilon)$$
-
-  
 
 where $\epsilon = 10^{-10}$ prevents numerical instability.
 
@@ -363,26 +189,19 @@ After logarithmic compression, Mel spectrograms are typically normalized to have
 $$S_norm(m,b) = (S_log(m,b) - μ_b) / σ_b$$
 
 where:
+
 - $μ_b$ is the mean of the b-th Mel band across all time frames
 - $σ_b$ is the standard deviation of the b-th Mel band across all time frames
 
-
 **Perceptual Motivation:** The Mel scale approximates the non-linear frequency resolution of human hearing, emphasizing perceptually relevant frequencies for speech (300-4000 Hz).
 
-
-### 2.3 Linear Frequency Cepstral Coefficients 
-
-  
+### 2.3 Linear Frequency Cepstral Coefficients
 
 LFCC was specifically designed for spoofing detection tasks, as it employs a linear frequency scale rather than the perceptually-motivated Mel scale. This characteristic makes LFCC particularly sensitive to high-frequency artifacts often present in synthetic speech.
 
-  
-
 **Mathematical Formulation:**
 
-  
-
-**1. Linear Filterbank Construction:** 
+**1. Linear Filterbank Construction:**
 
 $$
 H_b^{\text{lin}}(k) = \begin{cases}
@@ -391,34 +210,23 @@ H_b^{\text{lin}}(k) = \begin{cases}
 0 & \text{otherwise}
 \end{cases}
 $$
-  
 
 where filter centers are linearly spaced: $f_b = b \cdot \frac{f_s/2}{B}$ for $b = 0, \ldots, B$ (20 filters).
-
-  
 
 **2. Filterbank Application:**
 
 $$S_{\text{lin}}(m, b) = \sum_{k=0}^{N/2} P(m, k) \cdot H_b^{\text{lin}}(k)$$
 
-  
-
 **3. Logarithmic Compression:**
 
 $$S_{\log}(m, b) = \log(S_{\text{lin}}(m, b) + \epsilon)$$
-
-  
 
 **4. Discrete Cosine Transform (DCT):**
 
 $$\text{LFCC}(m, c) = \sum_{b=0}^{B-1} S_{\log}(m, b) \cos\left(\frac{\pi c(b + 0.5)}{B}\right)$$
 
-  
-
 The first 13 coefficients ($c = 0, \ldots, 12$) are retained, providing a compact representation.
 
-
-  
 ### 2.5 Multi-Modal Feature Fusion
 
 To leverage complementary information from multiple acoustic representations, the system employs an **intermediate fusion strategy**. This approach combines multiple feature types at the feature level before classification, enabling the model to learn complex inter-modal relationships and capture diverse acoustic characteristics of AI-generated speech.
@@ -437,12 +245,8 @@ The fusion process occurs in three stages:
 
 This intermediate fusion strategy enables the convolutional neural network to learn cross-modal patterns and dependencies during training, potentially capturing artifacts that may be subtle or absent in individual feature spaces but distinctive when features are jointly analyzed. The concatenated representation provides a richer input space that combines complementary information from perceptual (Mel-spectrogram), cepstral (LFCC), and constant-Q (CQT) domains.
 
- 
- 
- 
+## 3. Data Augmentation
 
-
-## 3. Data Augmentation   
 ### 3.1 Motivation and Strategy
 
 Data augmentation serves two critical purposes in audio deepfake detection: (1) preventing overfitting to training set characteristics, and (2) improving generalization across diverse acoustic environments and recording conditions. Our augmentation pipeline applies probabilistic transformations at the waveform level during training only, with an application probability of $p = 0.8$.
@@ -527,11 +331,11 @@ with reverberation time $RT_{60} \in [0.1, 0.5]$ seconds randomly sampled.
 
 Simulates realistic environmental noise conditions with three noise types:
 
-| Noise Type | Description | Frequency Range | SNR Range |
-|------------|-------------|-----------------|-----------|
-| Babble | Overlapping speech-like sounds | 300-3400 Hz (bandpass) | 10-20 dB |
-| Music | Low-frequency emphasis | 0-4000 Hz (lowpass) | 5-15 dB |
-| Ambient | Broadband noise | Full spectrum | 15-25 dB |
+| Noise Type | Description                    | Frequency Range        | SNR Range |
+| ---------- | ------------------------------ | ---------------------- | --------- |
+| Babble     | Overlapping speech-like sounds | 300-3400 Hz (bandpass) | 10-20 dB  |
+| Music      | Low-frequency emphasis         | 0-4000 Hz (lowpass)    | 5-15 dB   |
+| Ambient    | Broadband noise                | Full spectrum          | 15-25 dB  |
 
 The noise is scaled based on the target SNR:
 
@@ -542,11 +346,13 @@ $$y(t) = x(t) + \sqrt{\frac{P_x}{10^{\text{SNR}/10} \cdot P_n}} \cdot n(t)$$
 For spectrogram-based features (Mel, LFCC, MFCC, CQT), SpecAugment-style masking is applied:
 
 **Frequency Masking:**
+
 - Probability: 50%
 - Mask width: up to 20 frequency bins
 - Random contiguous frequency bands are set to the mean value
 
 **Time Masking:**
+
 - Probability: 50%
 - Mask width: up to 50 time steps
 - Random contiguous time segments are set to the mean value
@@ -558,41 +364,36 @@ where $f \in [1, \min(20, F/4)]$ and $t \in [1, \min(50, T/4)]$.
 
 ### 3.5 Augmentation Summary
 
-  | Augmentation | Parameters | Effect |
- |--------------|------------|--------|
-|   None | - | No augmentation |
-|   Gaussian Noise | SNR: 10-25 dB | Additive noise robustness |
-|  Background Noise | Factor: 0.01-0.05 | Environmental noise |
-|  Reverberation | Factor: 0.3-0.8 | Room acoustics |
-| Pitch Shift | Semitones: ±4 | Speaker variability |
-| Time Stretch | Rate: 0.85-1.15 | Tempo variation |
-| Gain | dB: ±6 | Volume normalization |
-| Low-Pass Filter | Cutoff: 2-6 kHz | Channel simulation |
-| High-Pass Filter | Cutoff: 50-300 Hz | DC removal |
-| RIR Simulation | RT60: 0.1-0.5s | Room acoustics |
-| MUSAN-Style | SNR: 5-25 dB | Realistic noise |
-
+| Augmentation     | Parameters        | Effect                    |
+| ---------------- | ----------------- | ------------------------- |
+| None             | -                 | No augmentation           |
+| Gaussian Noise   | SNR: 10-25 dB     | Additive noise robustness |
+| Background Noise | Factor: 0.01-0.05 | Environmental noise       |
+| Reverberation    | Factor: 0.3-0.8   | Room acoustics            |
+| Pitch Shift      | Semitones: ±4     | Speaker variability       |
+| Time Stretch     | Rate: 0.85-1.15   | Tempo variation           |
+| Gain             | dB: ±6            | Volume normalization      |
+| Low-Pass Filter  | Cutoff: 2-6 kHz   | Channel simulation        |
+| High-Pass Filter | Cutoff: 50-300 Hz | DC removal                |
+| RIR Simulation   | RT60: 0.1-0.5s    | Room acoustics            |
+| MUSAN-Style      | SNR: 5-25 dB      | Realistic noise           |
 
 ## 4. Network Architectures
 
-  
-
 ### 4.1 Overview
-
-  
 
 We employed a diverse set of deep neural network architectures, each offering distinct advantages for audio deepfake detection. The architectures range from lightweight models optimized for real-time inference to deep networks with high representational capacity.
 
 **Feature Compatibility:**
 
-| Model | Mel-Spectrogram | LFCC | CQT | Raw Waveform |
-|-------|:---------------:|:----:|:---:|:------------:|
-| EfficientNet-B2 | ✓ | ✓ | ✓ | ✗ |
-| EfficientNet-B2 Attention | ✓ | ✓ | ✓ | ✗ |
-| LCNN | ✓ | ✓ | ✓ | ✗ |
-| SE-ResNet | ✓ | ✓ | ✓ | ✗ |
-| RawNet3 | ✗ | ✗ | ✗ | ✓ |
-| SimpleCNN | ✗ | ✗ | ✗ | ✓ |
+| Model                     | Mel-Spectrogram | LFCC | CQT | Raw Waveform |
+| ------------------------- | :-------------: | :--: | :-: | :----------: |
+| EfficientNet-B2           |        ✓        |  ✓   |  ✓  |      ✗       |
+| EfficientNet-B2 Attention |        ✓        |  ✓   |  ✓  |      ✗       |
+| LCNN                      |        ✓        |  ✓   |  ✓  |      ✗       |
+| SE-ResNet                 |        ✓        |  ✓   |  ✓  |      ✗       |
+| RawNet3                   |        ✗        |  ✗   |  ✗  |      ✓       |
+| SimpleCNN                 |        ✗        |  ✗   |  ✗  |      ✓       |
 
 Models trained with spectrogram-based features (Mel-Spectrogram, LFCC, CQT) benefit from the complementary information provided by each representation, enabling robust detection across diverse spoofing attack types.
 
@@ -603,6 +404,7 @@ Models trained with spectrogram-based features (Mel-Spectrogram, LFCC, CQT) bene
 SimpleCNN is a lightweight 1D convolutional neural network designed for processing raw audio waveforms. It serves as a baseline model with minimal computational overhead, suitable for rapid prototyping and real-time inference on resource-constrained devices.
 
 **Key Specifications:**
+
 - **Input:** Raw Waveform $(B, 64600)$
 - **Parameters:** ~0.3M
 - **Output Embedding:** 128-dimensional feature vector
@@ -624,6 +426,7 @@ Dropout(0.5) → FC(128→64) → ReLU → Dropout(0.5) → FC(64→2)
 ```
 
 **Design Rationale:**
+
 - The initial large kernel (80 samples) captures low-level acoustic patterns at approximately 5ms temporal resolution at 16 kHz
 - Progressive channel expansion (32 → 64 → 128) increases representational capacity
 - Aggressive pooling reduces computational complexity while maintaining discriminative features
@@ -631,19 +434,13 @@ Dropout(0.5) → FC(128→64) → ReLU → Dropout(0.5) → FC(64→2)
 
 ### 4.3 EfficientNet-B2
 
-  
-
 **Architecture Description:**
-
-  
 
 EfficientNet-B2 is a compound-scaled convolutional neural network originally developed for image classification. We adapted it for audio forensics by modifying the input layer to accept single-channel spectrograms and replacing the classification head.
 
-  
-
 **Key Specifications:**
 
-- **Input:**  Log-Mel Spectrogram / LFCC / CQT $(B, 1, F, T)$
+- **Input:** Log-Mel Spectrogram / LFCC / CQT $(B, 1, F, T)$
 
 - **Backbone:** EfficientNet-B2 (depth=1.1, width=1.1, resolution scaling)
 
@@ -651,19 +448,11 @@ EfficientNet-B2 is a compound-scaled convolutional neural network originally dev
 
 - **Output Embedding:** 1408-dimensional feature vector
 
-  
-
 **Architectural Modifications:**
-
-  
 
 1. **Input Layer Adaptation:** The first convolutional layer was modified from Conv2d(3, 32) to Conv2d(1, 32) to accommodate single-channel input. Pre-trained weights from ImageNet were averaged across RGB channels:
 
-  
-
 $$W_{\text{new}}(1, :, :, :) = \frac{1}{3}\sum_{c=1}^{3} W_{\text{pretrained}}(c, :, :, :)$$
-
-  
 
 2. **Custom Classification Head:**
 
@@ -677,11 +466,7 @@ Input (1408) → Dropout(0.3) → Linear(512) → BatchNorm → ReLU
 
 ```
 
-  
-
 The progressive dimensionality reduction with interleaved regularization prevents overfitting while maintaining discriminative capacity.
-
-  
 
 **Transfer Learning Strategy:** Pre-training on ImageNet provides robust low-level feature extractors (edges, textures) that generalize well to spectro-temporal patterns in audio.
 
@@ -692,6 +477,7 @@ The progressive dimensionality reduction with interleaved regularization prevent
 An enhanced variant of EfficientNet-B2 that incorporates attention-based pooling for improved temporal modeling. This architecture is particularly effective when input spectrograms have variable lengths or require fine-grained temporal attention.
 
 **Key Specifications:**
+
 - **Input:** Log-Mel Spectrogram / LFCC / CQT $(B, 1, F, T)$
 - **Backbone:** EfficientNet-B2 features (without global pooling)
 - **Parameters:** ~9.5M
@@ -702,63 +488,47 @@ An enhanced variant of EfficientNet-B2 that incorporates attention-based pooling
 Instead of global average pooling, this variant uses learnable attention weights over spatial dimensions:
 
 1. **Attention Weight Computation:**
-$$\alpha_{h,w} = \frac{\exp(g(\mathbf{F}_{:,h,w}))}{\sum_{h',w'} \exp(g(\mathbf{F}_{:,h',w'}))}$$
+   $$\alpha_{h,w} = \frac{\exp(g(\mathbf{F}_{:,h,w}))}{\sum_{h',w'} \exp(g(\mathbf{F}_{:,h',w'}))}$$
 
 where $g(\cdot)$ is a bottleneck attention network: Conv2d(1408 → 128) → ReLU → Conv2d(128 → 1).
 
 2. **Attentive Statistics Pooling:**
-$$\mu_c = \sum_{h,w} \alpha_{h,w} \mathbf{F}_{c,h,w}$$
-$$\sigma_c = \sqrt{\sum_{h,w} \alpha_{h,w} \mathbf{F}_{c,h,w}^2 - \mu_c^2}$$
-$$\mathbf{v} = [\mu; \sigma]$$
+   $$\mu_c = \sum_{h,w} \alpha_{h,w} \mathbf{F}_{c,h,w}$$
+   $$\sigma_c = \sqrt{\sum_{h,w} \alpha_{h,w} \mathbf{F}_{c,h,w}^2 - \mu_c^2}$$
+   $$\mathbf{v} = [\mu; \sigma]$$
 
 The concatenation of attention-weighted mean and standard deviation provides a richer representation that captures both central tendency and variability of feature activations.
 
 **Custom Classification Head:**
+
 ```
 Input (2816) → Dropout(0.3) → Linear(512) → BatchNorm → ReLU
 → Dropout(0.3) → Linear(256) → BatchNorm → ReLU
 → Dropout(0.3) → Linear(2)
 ```
 
-  
-
 ### 4.5 Light CNN (LCNN)
 
-  
-
 **Architecture Description:**
-
-  
 
 LCNN employs Max-Feature-Map (MFM) activation functions instead of traditional ReLU. MFM acts as a learnable feature selection mechanism, particularly effective for spoofing detection where discriminative artifact selection is crucial.
 
 **Key Specifications:**
+
 - **Input:** Log-Mel Spectrogram / LFCC / CQT $(B, 1, 128, T)$
 - **Backbone:** 4-stage LCNN with MFM activations
 - **Parameters:** ~0.8M
 - **Output Embedding:** 128-dimensional feature vector
 
-  
-
 **MFM Activation:**
-
-  
 
 Given input $\mathbf{x} \in \mathbb{R}^{2C \times H \times W}$, MFM partitions channels and applies element-wise maximum:
 
-  
-
 $$\text{MFM}(\mathbf{x})_{c,h,w} = \max(\mathbf{x}_{c,h,w}, \mathbf{x}_{c+C,h,w})$$
-
-  
 
 This reduces the channel dimension by half while preserving the most salient features.
 
-  
-
 **Network Structure:**
-
-  
 
 ```
 
@@ -790,27 +560,15 @@ FC-MFM (256) → FC-MFM (128) → Linear(2)
 
 ```
 
-  
-
 **Attentive Statistics Pooling:**
-
-  
 
 Temporal aggregation is performed via attention-weighted statistics:
 
-  
-
 $$\alpha_t = \frac{\exp(w^T \phi(h_t))}{\sum_{t'} \exp(w^T \phi(h_{t'}))}$$
-
-  
 
 $$\mu = \sum_t \alpha_t h_t, \quad \sigma = \sqrt{\sum_t \alpha_t h_t^2 - \mu^2}$$
 
-  
-
 $$\mathbf{v} = [\mu; \sigma]$$
-
-  
 
 where $\phi$ is a learned transformation and $[\cdot; \cdot]$ denotes concatenation.
 
@@ -818,21 +576,20 @@ where $\phi$ is a learned transformation and $[\cdot; \cdot]$ denotes concatenat
 
 The backbone consists of four stages with progressively learned feature representations:
 
-| Stage | Channels | Operations |
-|-------|----------|------------|
-| 0 | 32 | Conv-MFM(5×5) → MaxPool(2×2) |
-| 1 | 48 | Conv-MFM(3×3) → ResBlock-MFM → MaxPool(2×2) |
-| 2 | 64 | Conv-MFM(3×3) → ResBlock-MFM → MaxPool(2×2) |
-| 3 | 32 | Conv-MFM(3×3) → ResBlock-MFM → Conv-MFM(1×1) |
+| Stage | Channels | Operations                                   |
+| ----- | -------- | -------------------------------------------- |
+| 0     | 32       | Conv-MFM(5×5) → MaxPool(2×2)                 |
+| 1     | 48       | Conv-MFM(3×3) → ResBlock-MFM → MaxPool(2×2)  |
+| 2     | 64       | Conv-MFM(3×3) → ResBlock-MFM → MaxPool(2×2)  |
+| 3     | 32       | Conv-MFM(3×3) → ResBlock-MFM → Conv-MFM(1×1) |
 
 **Embedding Projection:**
+
 ```
 AttentiveStatPool (64) → Linear(128) → MFM1D → BatchNorm(64)
 → Dropout(0.3) → Linear(256) → BatchNorm → ReLU
 → Dropout(0.3) → Linear(2)
 ```
-
-  
 
 ### 4.6 RawNet3
 
@@ -841,6 +598,7 @@ AttentiveStatPool (64) → Linear(128) → MFM1D → BatchNorm(64)
 RawNet3 processes raw waveforms directly, eliminating handcrafted feature extraction. This end-to-end approach allows the network to learn optimal representations for the task.
 
 **Key Specifications:**
+
 - **Input:** Raw Waveform $(B, 64600)$
 - **Backbone:** Sinc convolution + Res2Net blocks
 - **Parameters:** ~2.5M
@@ -848,12 +606,9 @@ RawNet3 processes raw waveforms directly, eliminating handcrafted feature extrac
 
 **Key Components:**
 
-
 1. **Sinc Convolution Layer:** Parameterized band-pass filters learn frequency band selection:
 
 $$h[n] = 2f_c \text{sinc}(2\pi f_c n) \cdot w[n]$$
-
-  
 
 where $f_c$ is the learnable cutoff frequency and $w[n]$ is a Hamming window. The layer uses 64 filters with kernel size 251, initialized with Mel-scale frequency spacing.
 
@@ -863,6 +618,7 @@ where $f_c$ is the learnable cutoff frequency and $w[n]$ is a Hamming window. Th
    - Concatenate outputs for multi-scale representation
 
 3. **Encoder Structure:**
+
 ```
 SincConv(64) → |Abs| → Res2Net(64→64) → AvgPool(3,2)
 → Res2Net(64→128) → AvgPool(3,2)
@@ -871,45 +627,46 @@ SincConv(64) → |Abs| → Res2Net(64→64) → AvgPool(3,2)
 ```
 
 4. **Attention Pooling:** Temporal attention followed by fully connected projection:
-$$\alpha_t = \text{softmax}(\tanh(W_1 h_t) \cdot W_2)$$
-$$\mathbf{e} = \sum_t \alpha_t h_t$$
+   $$\alpha_t = \text{softmax}(\tanh(W_1 h_t) \cdot W_2)$$
+   $$\mathbf{e} = \sum_t \alpha_t h_t$$
 
 **Classifier Head:**
+
 ```
 Embedding (512) → Linear(256) → ReLU → Dropout(0.3) → Linear(2)
 ```
- 
+
 ### 4.7 SE-ResNet
- 
+
 **Architecture Description:**
- 
+
 Squeeze-and-Excitation ResNet incorporates channel-wise attention mechanisms into the residual learning framework.
 
 **Key Specifications:**
+
 - **Input:** Log-Mel Spectrogram / LFCC / CQT $(B, 1, 128, T)$
 - **Backbone:** ResNet-34 style with SE blocks
 - **Parameters:** ~11.2M
 - **Output Embedding:** 1024-dimensional feature vector (mean + std)
- 
 
-**SE Block:** 
+**SE Block:**
 
 $$\tilde{\mathbf{F}}_c = \mathbf{F}_c \cdot \sigma(W_2 \delta(W_1 \mathbf{z}))$$
- 
 
 where $\mathbf{z} = \frac{1}{HW}\sum_{h,w} \mathbf{F}_{c,h,w}$ is global average pooling, $\delta$ is ReLU, $\sigma$ is sigmoid, and $W_1, W_2$ are learned projections with reduction ratio $r=16$.
 
 **Network Structure:**
 
-| Stage | Layers | Channels | Stride |
-|-------|--------|----------|--------|
-| Stem | Conv(7×7) → BN → ReLU → MaxPool(3×3) | 64 | 2 |
-| Layer 1 | 3 × BasicBlockSE | 64 | 1 |
-| Layer 2 | 4 × BasicBlockSE | 128 | 2 |
-| Layer 3 | 6 × BasicBlockSE | 256 | 2 |
-| Layer 4 | 3 × BasicBlockSE | 512 | 2 |
+| Stage   | Layers                               | Channels | Stride |
+| ------- | ------------------------------------ | -------- | ------ |
+| Stem    | Conv(7×7) → BN → ReLU → MaxPool(3×3) | 64       | 2      |
+| Layer 1 | 3 × BasicBlockSE                     | 64       | 1      |
+| Layer 2 | 4 × BasicBlockSE                     | 128      | 2      |
+| Layer 3 | 6 × BasicBlockSE                     | 256      | 2      |
+| Layer 4 | 3 × BasicBlockSE                     | 512      | 2      |
 
 **BasicBlockSE Structure:**
+
 ```
 x → Conv(3×3) → BN → ReLU → Conv(3×3) → BN → SE → (+x) → ReLU
 ```
@@ -921,6 +678,7 @@ After the backbone, the frequency axis is collapsed via mean pooling, and attent
 $$\mathbf{v} = [\mu_{\text{att}}; \sigma_{\text{att}}] \in \mathbb{R}^{1024}$$
 
 **Classifier Head:**
+
 ```
 Embedding (1024) → Linear(512) → BatchNorm → ReLU → Dropout(0.3)
 → Linear(256) → BatchNorm → ReLU → Dropout(0.3) → Linear(2)
@@ -928,33 +686,27 @@ Embedding (1024) → Linear(512) → BatchNorm → ReLU → Dropout(0.3)
 
 ### 4.8 Model Comparison Summary
 
-| Model | Input Type | Parameters | Embedding Dim | Key Advantage |
-|-------|------------|------------|---------------|---------------|
-| SimpleCNN | Raw | ~0.3M | 128 | Lightweight, fast inference |
-| EfficientNet-B2 | Spectrogram | ~9.2M | 1408 | Transfer learning from ImageNet |
-| EfficientNet-B2 Attention | Spectrogram | ~9.5M | 2816 | Attention-based temporal modeling |
-| LCNN | Spectrogram | ~0.8M | 128 | MFM feature selection |
-| RawNet3 | Raw | ~2.5M | 512 | End-to-end learnable filters |
-| SE-ResNet | Spectrogram | ~11.2M | 1024 | Channel attention + deep residual |
-
+| Model                     | Input Type  | Parameters | Embedding Dim | Key Advantage                     |
+| ------------------------- | ----------- | ---------- | ------------- | --------------------------------- |
+| SimpleCNN                 | Raw         | ~0.3M      | 128           | Lightweight, fast inference       |
+| EfficientNet-B2           | Spectrogram | ~9.2M      | 1408          | Transfer learning from ImageNet   |
+| EfficientNet-B2 Attention | Spectrogram | ~9.5M      | 2816          | Attention-based temporal modeling |
+| LCNN                      | Spectrogram | ~0.8M      | 128           | MFM feature selection             |
+| RawNet3                   | Raw         | ~2.5M      | 512           | End-to-end learnable filters      |
+| SE-ResNet                 | Spectrogram | ~11.2M     | 1024          | Channel attention + deep residual |
 
 ## 5. Experimental Setup
 
-  
-
 ### 5.1 Loss Function
 
-   
 A weighted Cross-Entropy loss addresses class imbalance:
- 
+
 $$\mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N} w_{y_i} \log p_{y_i}(\mathbf{x}_i)$$
 
- 
-
 where $w_0 = 0.1$ (spoof) and $w_1 = 0.9$ (bonafide), emphasizing correct classification of genuine audio.
- 
+
 ### 5.2 Optimization
- 
+
 **Adam Optimizer:** Adaptive moment estimation with parameters:
 
 - Learning rate: $\eta = 10^{-4}$
@@ -962,19 +714,16 @@ where $w_0 = 0.1$ (spoof) and $w_1 = 0.9$ (bonafide), emphasizing correct classi
 - $\beta_1 = 0.9$, $\beta_2 = 0.999$
 
 - Weight decay: $\lambda = 10^{-4}$
- 
 
 **Learning Rate Scheduling:**
- 
+
 Cosine annealing without warm restarts:
- 
+
 $$\eta_t = \eta_{\min} + \frac{1}{2}(\eta_{\max} - \eta_{\min})\left(1 + \cos\left(\frac{t}{T}\pi\right)\right)$$
- 
 
 where $t$ is the current step, $T$ is the total training steps, $\eta_{\max} = 10^{-4}$, and $\eta_{\min} = 10^{-6}$.
- 
+
 ### 5.3 Regularization
- 
 
 1. **Dropout:** Applied with $p = 0.3$ in fully connected layers
 
@@ -985,34 +734,29 @@ where $t$ is the current step, $T$ is the total training steps, $\eta_{\max} = 1
 4. **Early Stopping:** Based on validation EER with patience of 5 epochs
 
 ## 6. Training Procedure
- 
-### 6.1 Training Configuration
- 
-| Hyperparameter | Value | Justification | 
-|----------------|-------|---------------| 
-| Epochs | 20 | Sufficient for convergence on dataset | 
-| Batch Size | 32 | Balanced GPU memory and gradient stability | 
-| Initial Learning Rate | $10^{-4}$ | Standard for Adam optimizer | 
-| Weight Decay | $10^{-4}$ | L2 regularization strength | 
-| Gradient Clip Norm | 1.0 | Prevents gradient explosion |
 
-  
+### 6.1 Training Configuration
+
+| Hyperparameter        | Value     | Justification                              |
+| --------------------- | --------- | ------------------------------------------ |
+| Epochs                | 20        | Sufficient for convergence on dataset      |
+| Batch Size            | 32        | Balanced GPU memory and gradient stability |
+| Initial Learning Rate | $10^{-4}$ | Standard for Adam optimizer                |
+| Weight Decay          | $10^{-4}$ | L2 regularization strength                 |
+| Gradient Clip Norm    | 1.0       | Prevents gradient explosion                |
 
 ### 6.2 Mixed Precision Training
 
-  
+To accelerate training and reduce memory consumption, we employed Automatic Mixed Precision (AMP), Precision Selection, Training Loop with AMP
 
-To accelerate training and reduce memory consumption, we employed Automatic Mixed Precision (AMP),  Precision Selection, Training Loop with AMP 
 ### 6.3 Stochastic Weight Averaging (SWA)
- 
+
 SWA improves generalization by averaging model weights traversed during training:
- 
+
 $$\mathbf{w}_{\text{SWA}} = \frac{1}{K}\sum_{k=1}^{K} \mathbf{w}_{n_k}$$
 
- 
 where $\{n_k\}$ are epochs selected for averaging (typically the last 50% of training).
 
- 
 **Implementation:**
 
 - Average weights from epochs 10-20
@@ -1020,7 +764,6 @@ where $\{n_k\}$ are epochs selected for averaging (typically the last 50% of tra
 - Update BatchNorm statistics on training set before evaluation
 
 - Often yields 0.5-1.0% improvement in EER
- 
 
 ### 6.4 Epoch Training Loop
 
@@ -1046,72 +789,42 @@ The system implements a checkpoint mechanism that saves the model state whenever
 
 For enhanced generalization, Stochastic Weight Averaging (SWA) can be enabled during the latter half of training. This technique maintains a running average of model weights, which often leads to improved performance and better convergence to flat minima in the loss landscape.
 
-
-
-  
-
 ## 7. Model Validation and Selection
-
-  
 
 ### 7.1 Score Generation
 
-  
-
 For each audio sample, the model produces a scalar score representing the bonafide likelihood:
-
-  
 
 $$s(\mathbf{x}) = \text{logit}_{\text{bonafide}}(\mathbf{x}) = \log\frac{p(y=1|\mathbf{x})}{p(y=0|\mathbf{x})}$$
 
-  
-
 Higher scores indicate higher confidence in bonafide classification.
-
-  
 
 ### 7.2 Equal Error Rate (EER) Computation
 
-  
-
 EER is the primary evaluation metric, defined as the operating point where False Acceptance Rate (FAR) equals False Rejection Rate (FRR):
-
-  
 
 $$\text{FAR}(\theta) = \frac{|\{i: s_i \geq \theta, y_i = 0\}|}{|\{i: y_i = 0\}|}$$
 
-  
-
 $$\text{FRR}(\theta) = \frac{|\{i: s_i < \theta, y_i = 1\}|}{|\{i: y_i = 1\}|}$$
-
-  
 
 $$\text{EER} = \text{FAR}(\theta^*) = \text{FRR}(\theta^*) \text{ where } |\text{FAR}(\theta^*) - \text{FRR}(\theta^*)|$$ is minimized.
 
-  
+**Algorithm:**
 
-**Algorithm:** 
- 
 1. Sort all scores and compute FAR, FRR at each unique threshold
 
-2. Find threshold θ* where |FAR(θ) - FRR(θ)| is minimized
+2. Find threshold θ\* where |FAR(θ) - FRR(θ)| is minimized
 
 3. EER = (FAR(θ*) + FRR(θ*)) / 2
- 
-
-  
 
 ### 7.3 Model Selection Criterion
 
-  
-
 The model checkpoint yielding the lowest EER on the validation set is selected for final evaluation on the test set. This prevents overfitting to validation data through early stopping.
 
-   
-## 8. Ensemble Strategy 
+## 8. Ensemble Strategy
+
 ### 8.1 Motivation
 
-   
 Ensemble methods reduce prediction variance and improve robustness by combining predictions from multiple models trained with different initializations, architectures, or hyperparameters.
 
 ### 8.2 Implementation Architecture
@@ -1132,28 +845,28 @@ Ensembles are configured via JSON configuration files with a list of model confi
 
 ```json
 {
-    "model_config": [
-        {
-            "architecture": "LCNN",
-            "channels": [32, 48, 64, 32],
-            "dropout": 0.3,
-            "use_residual": true,
-            "att_bottleneck": 64,
-            "emb_dim": 128
-        },
-        {
-            "architecture": "SEResNet",
-            "dropout": 0.3,
-            "emb_dim": 128
-        },
-        {
-            "architecture": "EfficientNetB2",
-            "model_variant": "attention",
-            "dropout": 0.4,
-            "pretrained": true,
-            "att_bottleneck": 128
-        }
-    ]
+  "model_config": [
+    {
+      "architecture": "LCNN",
+      "channels": [32, 48, 64, 32],
+      "dropout": 0.3,
+      "use_residual": true,
+      "att_bottleneck": 64,
+      "emb_dim": 128
+    },
+    {
+      "architecture": "SEResNet",
+      "dropout": 0.3,
+      "emb_dim": 128
+    },
+    {
+      "architecture": "EfficientNetB2",
+      "model_variant": "attention",
+      "dropout": 0.4,
+      "pretrained": true,
+      "att_bottleneck": 128
+    }
+  ]
 }
 ```
 
@@ -1169,38 +882,37 @@ $$D_{\text{target}} = \max_{m \in \mathcal{M}} D_m$$
 where $D_m$ is the embedding dimension of model $m$ and $\mathcal{M}$ is the set of ensemble members.
 
 **Projection Function:**
-$$\mathbf{e}_m^{\text{proj}} = \begin{cases}
+
+$$
+\mathbf{e}_m^{\text{proj}} = \begin{cases}
 \mathbf{e}_m & \text{if } D_m = D_{\text{target}} \\
 W_m \mathbf{e}_m + \mathbf{b}_m & \text{otherwise}
-\end{cases}$$
+\end{cases}
+$$
 
 where $W_m \in \mathbb{R}^{D_{\text{target}} \times D_m}$ is a learned projection matrix initialized with Xavier uniform, and $\mathbf{b}_m$ is a zero-initialized bias.
 
 ### 8.5 Soft Voting (Logit Averaging)
- 
 
-Given $M$ trained models $\{f_1, \ldots, f_M\}$, the ensemble prediction is computed via soft voting: 
+Given $M$ trained models $\{f_1, \ldots, f_M\}$, the ensemble prediction is computed via soft voting:
 
 $$p_{\text{ensemble}}(y|\mathbf{x}) = \frac{1}{M}\sum_{m=1}^{M} p_m(y|\mathbf{x})$$
-
-  
 
 $$\hat{y} = \arg\max_y p_{\text{ensemble}}(y|\mathbf{x})$$
 
 **Implementation:**
 The logits from each model are stacked and averaged before softmax:
+
 ```
 logits_stacked = torch.stack([out_1, out_2, ..., out_M], dim=0)  # (M, B, C)
 avg_logits = torch.mean(logits_stacked, dim=0)                   # (B, C)
 ```
- 
 
 ### 8.6 Score-Level Fusion
- 
+
 For EER evaluation, scores are averaged:
- 
+
 $$s_{\text{ensemble}}(\mathbf{x}) = \frac{1}{M}\sum_{m=1}^{M} s_m(\mathbf{x})$$
- 
 
 This provides a robust aggregate score for threshold-based decision-making.
 
@@ -1211,21 +923,21 @@ Embeddings are fused for use in downstream tasks (e.g., explainability, visualiz
 $$\mathbf{e}_{\text{ensemble}} = \frac{1}{M}\sum_{m=1}^{M} \mathbf{e}_m^{\text{proj}}$$
 
 The averaged embedding preserves information from all constituent models while maintaining a consistent dimensionality.
- 
+
 ### 8.8 Best-Performing Ensemble Configuration
- 
 
 Our best-performing ensemble consists of:
 
-| Model | Feature | Parameters | Embedding Dim | Role |
-|-------|---------|------------|---------------|------|
-| LCNN | Mel-spectrogram | ~0.8M | 128 | Lightweight artifact detector with MFM |
-| SE-ResNet | Mel-spectrogram | ~11.2M | 1024 | Deep residual features with channel attention |
-| EfficientNet-B2 (Attention) | Mel-spectrogram | ~9.5M | 2816 | Transfer learning + spatial attention |
+| Model                       | Feature         | Parameters | Embedding Dim | Role                                          |
+| --------------------------- | --------------- | ---------- | ------------- | --------------------------------------------- |
+| LCNN                        | Mel-spectrogram | ~0.8M      | 128           | Lightweight artifact detector with MFM        |
+| SE-ResNet                   | Mel-spectrogram | ~11.2M     | 1024          | Deep residual features with channel attention |
+| EfficientNet-B2 (Attention) | Mel-spectrogram | ~9.5M      | 2816          | Transfer learning + spatial attention         |
 
 **Total Ensemble Parameters:** ~21.5M
- 
+
 This combination leverages complementary architectural inductive biases:
+
 - **LCNN** excels at detecting local spectral artifacts through competitive MFM activations
 - **SE-ResNet** captures hierarchical temporal patterns with channel-wise attention
 - **EfficientNet-B2** provides robust low-level features from ImageNet pretraining with learnable spatial attention
@@ -1240,7 +952,6 @@ The ensemble is trained end-to-end with all models receiving the same input and 
 4. **Unified Backpropagation:** Gradients propagate through all models simultaneously
 
 This joint training allows models to specialize and capture complementary features rather than redundant patterns.
-
 
 ## 9. Inference Pipeline
 
@@ -1278,19 +989,11 @@ The batched tensor is fed into the model in a single forward pass, allowing the 
 
 The resulting logit scores are extracted for all samples in the batch and accumulated across all batches to produce final predictions for the entire dataset. This batching strategy is particularly effective for large-scale evaluation scenarios where thousands of audio files need to be processed.
 
-   
-
 ## 10. Evaluation Metrics
-
-  
 
 ### 10.1 Primary Metric: Equal Error Rate (EER)
 
-  
-
 EER serves as the primary evaluation metric, providing a threshold-independent measure of system performance. It represents the operating point where the system makes equal proportions of false acceptances (spoof classified as bonafide) and false rejections (bonafide classified as spoof).
-
-  
 
 **Mathematical Definition:**
 
@@ -1306,8 +1009,6 @@ where:
 
 - $\theta^*$ is the threshold satisfying $\text{FAR}(\theta^*) = \text{FRR}(\theta^*)$
 
-  
-
 **Advantages:**
 
 - Threshold-independent comparison across systems
@@ -1316,19 +1017,11 @@ where:
 
 - Standard metric in biometric and anti-spoofing research
 
-  
-
 ### 10.2 Secondary Metric: Classification Accuracy
-
-  
 
 Accuracy at the EER threshold provides an intuitive performance measure:
 
-  
-
 $$\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}$$
-
-  
 
 where decisions are made using the EER threshold $\theta^*$.
 
@@ -1336,10 +1029,10 @@ where decisions are made using the EER threshold $\theta^*$.
 
 The confusion matrix provides a detailed breakdown of classification outcomes:
 
-|  | Predicted Fake | Predicted Real |
-|--|----------------|----------------|
-| **Actual Fake** | True Negative (TN) | False Positive (FP) |
-| **Actual Real** | False Negative (FN) | True Positive (TP) |
+|                 | Predicted Fake      | Predicted Real      |
+| --------------- | ------------------- | ------------------- |
+| **Actual Fake** | True Negative (TN)  | False Positive (FP) |
+| **Actual Real** | False Negative (FN) | True Positive (TP)  |
 
 This matrix enables calculation of class-specific error rates and identification of systematic misclassification patterns.
 
@@ -1375,19 +1068,11 @@ $$\text{AUC} = \int_0^1 \text{TPR}(\text{FPR}^{-1}(t)) \, dt$$
 - AUC = 0.5: Random classifier
 - AUC > 0.9: Excellent performance
 
-  
-
 ### 10.6 Detection Error Tradeoff (DET) Curve
-
-  
 
 The DET curve plots FRR against FAR across all possible thresholds on a normal deviate scale, providing a comprehensive visualization of system performance:
 
-  
-
 $$\text{DET}: \Phi^{-1}(\text{FRR}(\theta)) \text{ vs. } \Phi^{-1}(\text{FAR}(\theta))$$
-
-  
 
 where $\Phi^{-1}$ is the inverse standard normal CDF.
 
@@ -1395,29 +1080,20 @@ The DET curve provides better visualization of error trade-offs at low error rat
 
 ### 10.7 Metrics Summary Table
 
-| Metric | Primary Use | Threshold-Dependent |
-|--------|-------------|---------------------|
-| EER | Model selection, benchmark comparison | No (uses optimal threshold) |
-| Accuracy | Intuitive performance measure | Yes (uses EER threshold) |
-| Confusion Matrix | Error analysis | Yes |
-| Precision/Recall/F1 | Per-class performance | Yes |
-| ROC AUC | Overall discrimination ability | No |
-| DET Curve | Error trade-off visualization | No |
-
- 
-  
+| Metric              | Primary Use                           | Threshold-Dependent         |
+| ------------------- | ------------------------------------- | --------------------------- |
+| EER                 | Model selection, benchmark comparison | No (uses optimal threshold) |
+| Accuracy            | Intuitive performance measure         | Yes (uses EER threshold)    |
+| Confusion Matrix    | Error analysis                        | Yes                         |
+| Precision/Recall/F1 | Per-class performance                 | Yes                         |
+| ROC AUC             | Overall discrimination ability        | No                          |
+| DET Curve           | Error trade-off visualization         | No                          |
 
 ## 11. Optimization Techniques
 
-  
-
 ### 11.1 Mixed Precision Training
 
-  
-
 Mixed precision training reduces memory footprint and accelerates computation by using lower precision (FP16/BF16) for forward and backward passes while maintaining FP32 master weights.
-
-  
 
 **BFloat16 (BF16):**
 
@@ -1429,8 +1105,6 @@ Mixed precision training reduces memory footprint and accelerates computation by
 
 - No gradient scaling required
 
-  
-
 **Float16 (FP16):**
 
 - 5-bit exponent, 10-bit mantissa
@@ -1441,8 +1115,6 @@ Mixed precision training reduces memory footprint and accelerates computation by
 
 - Dynamic range: $\approx 10^{-8}$ to $65504$
 
-  
-
 **Performance Gains:**
 
 - Training speedup: 1.3-1.5×
@@ -1451,15 +1123,9 @@ Mixed precision training reduces memory footprint and accelerates computation by
 
 - No accuracy degradation
 
-  
-
 ### 11.2 TensorFloat-32 (TF32)
 
-  
-
 TF32 is an intermediate precision format (19-bit) that accelerates FP32 matrix multiplications on Ampere+ GPUs:
-
-  
 
 ```python
 
@@ -1469,8 +1135,6 @@ torch.backends.cudnn.allow_tf32 = True
 
 ```
 
-  
-
 **Characteristics:**
 
 - Automatic conversion from FP32
@@ -1479,20 +1143,14 @@ torch.backends.cudnn.allow_tf32 = True
 
 - Negligible accuracy impact (<0.1% typical)
 
-  
-
 ### 11.3 Channels-Last Memory Layout
-
-  
 
 Channels-last format $(N, H, W, C)$ improves memory locality and enables hardware-specific optimizations:
 
-  
-
 $$\text{Speedup} \approx 1.2\text{-}1.3\times \text{ on modern GPUs}$$
+
 ### 11.4 Gradient Accumulation
 
-  
 For effective large batch training with limited memory.
 
 Effective batch size: $B_{\text{eff}} = B \times A$ where $A$ is accumulation steps.
@@ -1523,7 +1181,7 @@ To fully reproduce experimental results, the following components must be identi
 ✓ **Dataset preprocessing**: Feature extraction methods, normalization parameters, and augmentation settings  
 ✓ **Model architecture**: Network structure, layer configurations, and weight initialization methods  
 ✓ **Hardware specifications**: GPU model may affect numerical precision due to different floating-point implementations  
-✓ **Operating system**: OS version and CUDA driver versions can impact computational behavior  
+✓ **Operating system**: OS version and CUDA driver versions can impact computational behavior
 
 ### 12.4 Configuration Management
 
@@ -1537,15 +1195,14 @@ To facilitate reproducibility and experimental tracking, all configuration param
 
 All configurations also include the master random seed value to enable exact reproduction of results. These configuration files serve as comprehensive documentation of each experiment and can be version-controlled alongside model checkpoints and training logs.
 
-  
-
 ## 13. Explainable AI (XAI) Methodology
 
 ### 13.1 Motivation and Objectives
 
-Explainability is crucial for audio deepfake detection systems deployed in real-world applications such as forensic analysis, content moderation, and legal proceedings. Understanding *why* a model classifies audio as genuine or synthetic builds trust, enables error analysis, and provides actionable insights for system improvement.
+Explainability is crucial for audio deepfake detection systems deployed in real-world applications such as forensic analysis, content moderation, and legal proceedings. Understanding _why_ a model classifies audio as genuine or synthetic builds trust, enables error analysis, and provides actionable insights for system improvement.
 
 **Key Objectives:**
+
 1. **Decision Transparency**: Reveal which acoustic regions influence classification
 2. **Feature Attribution**: Identify discriminative spectro-temporal patterns
 3. **Model Debugging**: Detect spurious correlations and dataset biases
@@ -1555,14 +1212,14 @@ Explainability is crucial for audio deepfake detection systems deployed in real-
 
 The system supports six complementary explainability methods, each providing different insights into model behavior:
 
-| Method | Type | Description |
-|--------|------|-------------|
-| Attention Extraction | Intrinsic | Extracts attention weights from attention layers |
-| Gradient Saliency | Gradient-based | Computes input gradients w.r.t. target class |
-| SmoothGrad | Gradient-based | Noise-averaged gradient saliency |
-| Integrated Gradients | Gradient-based | Path-integrated attributions from baseline |
+| Method                | Type               | Description                                       |
+| --------------------- | ------------------ | ------------------------------------------------- |
+| Attention Extraction  | Intrinsic          | Extracts attention weights from attention layers  |
+| Gradient Saliency     | Gradient-based     | Computes input gradients w.r.t. target class      |
+| SmoothGrad            | Gradient-based     | Noise-averaged gradient saliency                  |
+| Integrated Gradients  | Gradient-based     | Path-integrated attributions from baseline        |
 | Occlusion Sensitivity | Perturbation-based | Measures prediction change when occluding regions |
-| Grad-CAM | Gradient-based | Class activation mapping via gradient weighting |
+| Grad-CAM              | Gradient-based     | Class activation mapping via gradient weighting   |
 
 #### 13.2.1 Attention Extraction
 
@@ -1611,18 +1268,14 @@ where $\alpha_k^c = \frac{1}{Z} \sum_i \sum_j \frac{\partial y^c}{\partial A_{ij
 ### 13.3 Visualization
 
 Attribution maps are visualized as heatmaps overlaid on input spectrograms or waveforms:
+
 - **High-intensity regions**: Features strongly influencing the prediction
 - **Temporal axis**: Reveals time segments containing artifacts
 - **Frequency axis**: Identifies discriminative frequency bands
- 
 
 ## 14. Conclusion
 
-  
-
 This methodology presents a comprehensive deep learning framework for audio deepfake detection, incorporating state-of-the-art neural architectures, robust data augmentation, and advanced training techniques. The systematic approach—from feature extraction through ensemble inference—provides a reproducible pipeline achieving competitive performance on the Fake-or-Real dataset.
-
-  
 
 Key contributions include:
 
@@ -1635,7 +1288,5 @@ Key contributions include:
 4. **Ensemble strategies** combining complementary models for robust detection
 
 5. **Production-ready inference** with real-time processing capabilities
-
-  
 
 The methodology establishes a foundation for future research in audio forensics, with extensibility to additional datasets, architectures, and evaluation protocols.
