@@ -1,5 +1,5 @@
 """
-EfficientNet-B2 model for ASVspoof detection
+EfficientNet-B2 model for FOR detection
 Uses pre-trained EfficientNet-B2 backbone with custom classifier head
 Optimized for mel-spectrogram input
 """
