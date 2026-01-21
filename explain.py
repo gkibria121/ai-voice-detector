@@ -37,8 +37,15 @@ def load_model(config_path: str, weights_path: str, device: torch.device):
     module = import_module(f"models.{arch}")
     model_variant = model_config.get("model_variant", None)
     
+
     # Instantiate model
-    if model_variant == "large":
+    if model_variant == "attention":
+        if hasattr(module, "ModelWithAttention"):
+            _model = getattr(module, "ModelWithAttention")
+        else:
+            print(f"Warning: ModelWithAttention not found in {arch}, using standard Model")
+            _model = getattr(module, "Model")
+    elif model_variant == "large":
         if hasattr(module, "ModelLarge"):
             _model = getattr(module, "ModelLarge")
         else:
@@ -301,8 +308,12 @@ Examples:
     device = torch.device("cuda" if torch.cuda.is_available() and not args.cpu else "cpu")
     print(f"Using device: {device}")
 
-    # Load model
-    model, config = load_model(args.config, args.model_path, device)
+    # Load config to get model_path if not provided
+    with open(args.config, "r") as f:
+        config_json = json.load(f)
+    default_model_path = config_json.get("model_path")
+    model_path = args.model_path if args.model_path is not None else default_model_path
+    model, config = load_model(args.config, model_path, device)
     
     # Prepare input
     if args.feature_type is not None:
