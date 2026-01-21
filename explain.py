@@ -22,16 +22,7 @@ import matplotlib.pyplot as plt
 # Add current directory to path to allow imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from explainability import (
-    AttentionExtractor, 
-    GradientSaliency,
-    SmoothGrad,
-    IntegratedGradients,
-    OcclusionSensitivity,
-    GradCAM,
-    visualize_attention,
-    visualize_saliency
-)
+from explainability import GradCAM, visualize_saliency
 
 def load_model(config_path: str, weights_path: str, device: torch.device):
     """Load model from config and weights."""
@@ -47,17 +38,11 @@ def load_model(config_path: str, weights_path: str, device: torch.device):
     model_variant = model_config.get("model_variant", None)
     
     # Instantiate model
-    if model_variant == "attention":
-        if hasattr(module, "ModelWithAttention"):
-            _model = getattr(module, "ModelWithAttention")
-        else:
-            print(f"Warning: ModelWithAttention not found in {arch}, using standard Model")
-            _model = getattr(module, "Model")
-    elif model_variant == "large":
+    if model_variant == "large":
         if hasattr(module, "ModelLarge"):
             _model = getattr(module, "ModelLarge")
         else:
-             _model = getattr(module, "Model")
+            _model = getattr(module, "Model")
     else:
         _model = getattr(module, "Model")
 
@@ -147,29 +132,7 @@ def find_gradcam_target_layer(model):
         
     return target_layer
 
-def run_attention(model, input_tensor, base_name, output_dir, device, show_plots, save_plots):
-    """Run attention extraction."""
-    print("\n[1/6] Running Attention Extraction...")
-    extractor = AttentionExtractor(model, device)
-    
-    if not extractor.hooks:
-        print("  ⚠ No attention layers found - skipping")
-        extractor.cleanup()
-        return
-        
-    maps = extractor.get_attention_maps(input_tensor)
-    print(f"  ✓ Extracted {len(maps)} attention maps")
-    
-    for i, attn_map in enumerate(maps):
-        if save_plots:
-            save_path = os.path.join(output_dir, f"{base_name}_attn_layer{i}.png")
-            visualize_attention(attn_map, save_path=save_path)
-            print(f"    Saved: {save_path}")
-        
-        if show_plots:
-            visualize_attention(attn_map, save_path=None)
-        
-    extractor.cleanup()
+
 
 def run_saliency(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class, show_plots, save_plots):
     """Run gradient saliency."""
@@ -318,9 +281,9 @@ Examples:
     parser.add_argument("--audio_file", required=True, help="Path to input audio file")
     parser.add_argument("--model_path", help="Path to model weights (.pth)")
     parser.add_argument("--method", nargs='+', 
-                        choices=["attention", "saliency", "smoothgrad", "integrated_gradients", "occlusion", "gradcam", "all"], 
+                        choices=["gradcam", "all"], 
                         default=None,
-                        help="XAI method(s) to use. Default: all methods")
+                        help="XAI method(s) to use. Only gradcam is supported.")
     parser.add_argument("--output_dir", default="explained_outputs", help="Directory to save visualizations")
     parser.add_argument("--cpu", action="store_true", help="Force CPU usage")
     parser.add_argument("--target_class", type=int, default=None, 
@@ -357,9 +320,9 @@ Examples:
     
     # Determine which methods to run
     if args.method is None or "all" in args.method:
-        methods = ["attention", "saliency", "smoothgrad", "integrated_gradients", "occlusion", "gradcam"]
+        methods = ["gradcam"]
     else:
-        methods = args.method
+        methods = args.method 
     
     print(f"\n{'='*60}")
     print(f"Running XAI Analysis on: {base_name}")
@@ -375,29 +338,9 @@ Examples:
     
     for method in methods:
         try:
-            if method == "attention":
-                run_attention(model, input_tensor, base_name, args.output_dir, device, args.show, save_plots)
-            
-            elif method == "saliency":
-                run_saliency(model, input_tensor, spectrogram_vis, base_name, 
-                           args.output_dir, device, args.target_class, args.show, save_plots)
-            
-            elif method == "smoothgrad":
-                run_smoothgrad(model, input_tensor, spectrogram_vis, base_name, 
-                             args.output_dir, device, args.target_class, args.show, save_plots)
-            
-            elif method == "integrated_gradients":
-                run_integrated_gradients(model, input_tensor, spectrogram_vis, base_name, 
-                                       args.output_dir, device, args.target_class, args.show, save_plots)
-            
-            elif method == "occlusion":
-                run_occlusion(model, input_tensor, spectrogram_vis, base_name, 
-                            args.output_dir, device, args.target_class, feature_type, args.show, save_plots)
-            
-            elif method == "gradcam":
+            if method == "gradcam":
                 run_gradcam(model, input_tensor, spectrogram_vis, base_name, 
                           args.output_dir, device, args.target_class, args.show, save_plots)
-                
         except Exception as e:
             print(f"  ✗ Error running {method}: {e}")
             import traceback
