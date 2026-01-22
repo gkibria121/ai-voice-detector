@@ -4,23 +4,7 @@
 
 ## Inference Pipeline
 
-```
-  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
-  │ Audio File  │─────▶│  Preprocess │─────▶│   Extract   │─────▶│    Model    │
-  │  (input)    │      │  16kHz/Mono │      │  Features   │      │  Forward    │
-  └─────────────┘      └─────────────┘      └─────────────┘      └──────┬──────┘
-                                                                        │
-       ┌────────────────────────────────────────────────────────────────┘
-       ▼
-  ┌─────────────┐      ┌─────────────┐      ┌─────────────────────────────────┐
-  │   Softmax   │─────▶│  Threshold  │─────▶│           OUTPUT                │
-  │   Scores    │      │   (0.5)     │      │  Label: REAL/FAKE               │
-  └─────────────┘      └─────────────┘      │  Confidence: 0.0 - 1.0          │
-                                            │  XAI: Attention/GradCAM Heatmap │
-                                            └─────────────────────────────────┘
-```
-
----
+![Overview](images/inference.png)
 
 ## 1. Data Preparation and Preprocessing
 
