@@ -1187,61 +1187,21 @@ GradCAM (Gradient-weighted Class Activation Mapping) is used to visualize which 
 4. Apply a ReLU activation to obtain the final heatmap.
 5. Overlay the heatmap on the input spectrogram for visual interpretation.
 
-GradCAM provides interpretable visualizations that help users and researchers understand which parts of the audio signal contribute most to the classification decision, supporting transparency and trust in the system.
-2. **Feature Attribution**: Identify discriminative spectro-temporal patterns
-3. **Model Debugging**: Detect spurious correlations and dataset biases
-4. **User Trust**: Provide interpretable evidence for non-technical stakeholders
+GradCAM provides interpretable visualizations that help users and researchers understand which parts of the audio signal contribute most to the classification decision, supporting transparency and trust in the system. 2. **Feature Attribution**: Identify discriminative spectro-temporal patterns 3. **Model Debugging**: Detect spurious correlations and dataset biases 4. **User Trust**: Provide interpretable evidence for non-technical stakeholders
 
 ### 13.2 Implemented XAI Methods
 
 The system supports six complementary explainability methods, each providing different insights into model behavior:
 
-| Method                | Type               | Description                                       |
-| --------------------- | ------------------ | ------------------------------------------------- |
-| Attention Extraction  | Intrinsic          | Extracts attention weights from attention layers  |
-| Gradient Saliency     | Gradient-based     | Computes input gradients w.r.t. target class      |
-| SmoothGrad            | Gradient-based     | Noise-averaged gradient saliency                  |
-| Integrated Gradients  | Gradient-based     | Path-integrated attributions from baseline        |
-| Occlusion Sensitivity | Perturbation-based | Measures prediction change when occluding regions |
-| Grad-CAM              | Gradient-based     | Class activation mapping via gradient weighting   |
+| Method   | Type           | Description                                     |
+| -------- | -------------- | ----------------------------------------------- |
+| Grad-CAM | Gradient-based | Class activation mapping via gradient weighting |
 
 #### 13.2.1 Attention Extraction
 
 For architectures with attention mechanisms, attention weights provide inherent interpretability by revealing which temporal or spectral regions the model focuses on during classification.
 
-#### 13.2.2 Gradient Saliency
-
-Computes the gradient of the target class score with respect to input features:
-
-$$S_i = \left|\frac{\partial y^c}{\partial x_i}\right|$$
-
-High gradient magnitudes indicate input regions that strongly influence the prediction.
-
-#### 13.2.3 SmoothGrad
-
-Reduces noise in gradient-based attributions by averaging gradients over multiple noise-perturbed inputs:
-
-$$\hat{S}_i = \frac{1}{N}\sum_{n=1}^{N} \frac{\partial y^c}{\partial (x_i + \epsilon_n)}$$
-
-where $\epsilon_n \sim \mathcal{N}(0, \sigma^2)$ and $N=50$ samples with noise level $\sigma=0.15$.
-
-#### 13.2.4 Integrated Gradients
-
-Provides axiomatic attribution by accumulating gradients along a path from a baseline to the input:
-
-$$\text{IG}_i(x) = (x_i - x_i') \times \int_{\alpha=0}^{1} \frac{\partial F(x' + \alpha(x - x'))}{\partial x_i} d\alpha$$
-
-where $x'$ is typically a zero baseline.
-
-#### 13.2.5 Occlusion Sensitivity
-
-Measures prediction sensitivity by systematically occluding input regions:
-
-$$O_{i,j} = f(x) - f(x_{\text{occluded}}^{i,j})$$
-
-Regions where occlusion causes large prediction changes are considered important.
-
-#### 13.2.6 Grad-CAM
+#### 13.2.2 Grad-CAM
 
 Generates visual explanations using gradients flowing into the last convolutional layer:
 
@@ -1251,11 +1211,13 @@ where $\alpha_k^c = \frac{1}{Z} \sum_i \sum_j \frac{\partial y^c}{\partial A_{ij
 
 ### 13.3 Visualization
 
-Attribution maps are visualized as heatmaps overlaid on input spectrograms or waveforms:
+GradCAM visualizations are presented as heatmaps overlaid on input spectrograms:
 
-- **High-intensity regions**: Features strongly influencing the prediction
-- **Temporal axis**: Reveals time segments containing artifacts
-- **Frequency axis**: Identifies discriminative frequency bands
+- **High-intensity regions**: Indicate time-frequency areas that most strongly influenced the model's prediction.
+- **Temporal axis**: Shows which time segments in the audio were most relevant for the decision.
+- **Frequency axis**: Highlights frequency bands that contributed to the classification.
+
+This approach provides interpretable evidence for model decisions, helping users understand which parts of the audio signal were most important for the deepfake detection outcome.
 
 ## 14. Conclusion
 
