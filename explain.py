@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """
 CLI tool for Explainable AI (XAI) analysis of the Voice Detector models.
-Supports Attention Maps, Gradient Saliency, SmoothGrad, Integrated Gradients, 
-Occlusion Sensitivity, and Grad-CAM.
-
-By default, runs ALL available XAI methods. Use --method to run specific methods only.
+Supports only Grad-CAM.
 """
 
 import argparse
@@ -290,7 +287,7 @@ Examples:
     parser.add_argument("--method", nargs='+', 
                         choices=["gradcam", "all"], 
                         default=None,
-                        help="XAI method(s) to use. Only gradcam is supported.")
+                        help="XAI method(s) to use. Only Grad-CAM is supported.")
     parser.add_argument("--output_dir", default="explained_outputs", help="Directory to save visualizations")
     parser.add_argument("--cpu", action="store_true", help="Force CPU usage")
     parser.add_argument("--target_class", type=int, default=None, 

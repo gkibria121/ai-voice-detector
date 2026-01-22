@@ -1,10 +1,7 @@
 """
 Explainability Utilities for AI Voice Detector
 
-This module provides tools for:
-1. Attention map extraction and visualization
-2. Feature importance analysis (SHAP/LIME style)
-3. Gradient-based saliency maps
+This module provides GradCAM tools for model interpretability.
 """
 
 import numpy as np
