@@ -25,13 +25,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 97.70% | ROC AUC: 0.9978 | EER: 2.39% |
 
-<table><tr>
-<!-- <td><img src="images/results_1_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_1_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_1_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_1_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_1_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_1_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_1_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_1_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_1_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_1_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 1.103%, Accuracy: 97.70%**
 
@@ -44,13 +48,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 76.75% | ROC AUC: 0.8357 | EER: 23.35% |
 
-<table><tr>
-<!-- <td><img src="images/results_2_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_2_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_2_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_2_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_2_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_2_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_2_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_2_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_2_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_2_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 23.346%, Accuracy: 76.75%**
 
@@ -63,13 +71,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 96.05% | ROC AUC: 0.9905 | EER: 3.68% |
 
-<table><tr>
-<!-- <td><img src="images/results_3_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_3_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_3_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_3_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_3_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_3_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_3_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_3_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_3_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_3_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 3.493%, Accuracy: 96.05%**
 
@@ -84,13 +96,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 96.97% | ROC AUC: 0.9944 | EER: 3.12% |
 
-<table><tr>
-<!-- <td><img src="images/results_5_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_5_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_5_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_5_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_5_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_5_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_5_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_5_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_5_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_5_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 2.757%, Accuracy: 96.97%**
 
@@ -103,13 +119,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 72.52% | ROC AUC: 0.8100 | EER: 27.57% |
 
-<table><tr>
-<!-- <td><img src="images/results_6_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_6_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_6_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_6_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_6_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_6_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_6_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_6_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_6_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_6_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 24.632%, Accuracy: 72.52%**
 
@@ -122,13 +142,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 96.78% | ROC AUC: 0.9928 | EER: 3.31% |
 
-<table><tr>
-<!-- <td><img src="images/results_7_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_7_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_7_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_7_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_7_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_7_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_7_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_7_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_7_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_7_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 2.757%, Accuracy: 96.78%**
 
@@ -143,13 +167,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 91.82% | ROC AUC: 0.9771 | EER: 8.27% |
 
-<table><tr>
-<!-- <td><img src="images/results_9_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_9_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_9_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_9_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_9_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_9_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_9_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_9_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_9_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_9_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 8.088%, Accuracy: 91.82%**
 
@@ -162,13 +190,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 94.94% | ROC AUC: 0.9890 | EER: 5.15% |
 
-<table><tr>
-<!-- <td><img src="images/results_10_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_10_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_10_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_10_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_10_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_10_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_10_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_10_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_10_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_10_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 2.757%, Accuracy: 94.94%**
 
@@ -181,13 +213,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 95.50% | ROC AUC: 0.9907 | EER: 3.86% |
 
-<table><tr>
-<!-- <td><img src="images/results_11_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_11_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_11_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_11_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_11_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_11_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_11_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_11_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_11_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_11_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 3.676%, Accuracy: 95.50%**
 
@@ -202,13 +238,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 95.31% | ROC AUC: 0.9913 | EER: 4.78% |
 
-<table><tr>
-<!-- <td><img src="images/results_13_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_13_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_13_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_13_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_13_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_13_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_13_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_13_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_13_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_13_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 4.779%, Accuracy: 95.31%**
 
@@ -221,13 +261,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 91.08% | ROC AUC: 0.9653 | EER: 8.82% |
 
-<table><tr>
-<!-- <td><img src="images/results_14_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_14_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_14_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_14_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_14_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_14_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_14_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_14_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_14_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_14_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 5.331%, Accuracy: 91.08%**
 
@@ -240,13 +284,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 95.50% | ROC AUC: 0.9903 | EER: 4.78% |
 
-<table><tr>
-<!-- <td><img src="images/results_15_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_15_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_15_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_15_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_15_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_15_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_15_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_15_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_15_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_15_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 4.228%, Accuracy: 95.50%**
 
@@ -261,13 +309,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 89.43% | ROC AUC: 0.9674 | EER: 10.66% |
 
-<table><tr>
-<!-- <td><img src="images/results_17_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_17_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_17_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_17_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_17_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_17_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_17_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_17_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_17_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_17_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 8.456%, Accuracy: 89.43%**
 
@@ -280,13 +332,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 92.00% | ROC AUC: 0.9750 | EER: 8.09% |
 
-<table><tr>
-<!-- <td><img src="images/results_18_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_18_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_18_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_18_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_18_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_18_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_18_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_18_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_18_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_18_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 3.860%, Accuracy: 92.00%**
 
@@ -299,13 +355,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 96.05% | ROC AUC: 0.9908 | EER: 3.86% |
 
-<table><tr>
-<!-- <td><img src="images/results_19_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_19_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_19_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_19_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_19_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_19_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_19_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_19_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_19_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_19_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 3.860%, Accuracy: 96.05%**
 
@@ -318,13 +378,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 96.05% | ROC AUC: 0.9944 | EER: 4.04% |
 
-<table><tr>
-<!-- <td><img src="images/results_21_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_21_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_21_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_21_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_21_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_21_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_21_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_21_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_21_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_21_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 1.838%, Accuracy: 96.05%**
 
@@ -339,13 +403,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 94.58% | ROC AUC: 0.9911 | EER: 5.33% |
 
-<table><tr>
-<!-- <td><img src="images/results_23_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_23_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_23_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_23_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_23_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_23_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_23_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_23_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_23_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_23_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 3.309%, Accuracy: 94.58%**
 
@@ -358,13 +426,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 94.03% | ROC AUC: 0.9864 | EER: 5.88% |
 
-<table><tr>
-<!-- <td><img src="images/results_24_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_24_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_24_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_24_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_24_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_24_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_24_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_24_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_24_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_24_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 4.779%, Accuracy: 94.03%**
 
@@ -377,13 +449,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 92.74% | ROC AUC: 0.9821 | EER: 6.25% |
 
-<table><tr>
-<!-- <td><img src="images/results_25_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_25_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_25_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_25_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_25_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_25_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_25_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_25_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_25_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_25_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 3.309%, Accuracy: 92.74%**
 
@@ -400,13 +476,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 81.89% | ROC AUC: 0.8956 | EER: 18.20% |
 
-<table><tr>
-<!-- <td><img src="images/results_29_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_29_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_29_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_29_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_29_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_29_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_29_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_29_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_29_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_29_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 14.338%, Accuracy: 81.89%**
 
@@ -419,13 +499,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 62.96% | ROC AUC: 0.6773 | EER: 37.13% |
 
-<table><tr>
-<!-- <td><img src="images/results_30_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_30_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_30_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_30_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_30_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_30_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_30_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_30_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_30_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_30_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 30.882%, Accuracy: 62.96%**
 
@@ -440,13 +524,17 @@ This document presents the experimental results for audio deepfake detection usi
 |---------------------|------------------|-----------------|------------|
 | **Evaluation Set**  | Accuracy: 49.72% | ROC AUC: 0.5038 | EER: 50.37% |
 
-<table><tr>
-<!-- <td><img src="images/results_32_3.png" alt="Confusion Matrix Dev" width="200"/></td>
-<td><img src="images/results_32_5.png" alt="ROC Curve Dev" width="200"/></td> -->
-<td><img src="images/results_32_9.png" alt="Confusion Matrix Eval" width="200"/></td>
-<td><img src="images/results_32_11.png" alt="ROC Curve Eval" width="200"/></td>
-<td><img src="images/results_32_13.png" alt="Accuracy Comparison" width="200"/></td>
-</tr></table>
+<table>
+<tr>
+<!-- <td><img src="images/results_32_3.png" alt="Confusion Matrix Dev" width="400"/></td>
+<td><img src="images/results_32_5.png" alt="ROC Curve Dev" width="400"/></td> -->
+<td><img src="images/results_32_9.png" alt="Confusion Matrix Eval" width="400"/></td>
+<td><img src="images/results_32_11.png" alt="ROC Curve Eval" width="400"/></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align:center;"><img src="images/results_32_13.png" alt="Accuracy Comparison" width="800"/></td>
+</tr>
+</table>
 
 **Final Results: EER: 41.728%, Accuracy: 49.72%**
 
@@ -518,10 +606,10 @@ This document presents the experimental results for audio deepfake detection usi
 
 ### Model Performance Comparison
 
-<table><tr>
-<td><img src="images/model_comparison_bar.png" alt="Model Comparison" width="400"/></td>
-<td><img src="images/feature_comparison_heatmap.png" alt="Feature Comparison Heatmap" width="400"/></td>
-</tr></table>
+![Model Comparison](images/model_comparison_bar.png)
+![Feature Comparison Heatmap](images/feature_comparison_heatmap.png)
+ 
+ 
 
 **Average Performance by Model (on Mel/LFCC/CQT features):**
 
@@ -548,10 +636,9 @@ This document presents the experimental results for audio deepfake detection usi
 
 **Key Insight:** CQT features provide the most consistent performance across all models with the lowest standard deviation.
 
-<table><tr>
-<td><img src="images/feature_analysis.png" alt="Feature Analysis" width="400"/></td>
-<td><img src="images/top_models.png" alt="Top Models" width="400"/></td>
-</tr></table>
+![Feature Analysis](images/feature_analysis.png)
+![Top Models](images/top_models.png)
+ 
 
 ---
 
