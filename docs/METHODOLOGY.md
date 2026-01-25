@@ -307,7 +307,6 @@ We employed a diverse set of deep neural network architectures, each offering di
 | SE-ResNet                 |        ✓        |  ✓   |  ✓  |      ✗       |
 | RawNet3                   |        ✗        |  ✗   |  ✗  |      ✓       |
 | SimpleCNN                 |        ✗        |  ✗   |  ✗  |      ✓       |
-| Wav2Vec2                  |        ✗        |  ✗   |  ✗  |      ✓       |
 
 Models trained with spectrogram-based features (Mel-Spectrogram, LFCC, CQT) benefit from the complementary information provided by each representation, enabling robust detection across diverse spoofing attack types.
 
@@ -598,46 +597,7 @@ Embedding (1024) → Linear(512) → BatchNorm → ReLU → Dropout(0.3)
 → Linear(256) → BatchNorm → ReLU → Dropout(0.3) → Linear(2)
 ```
 
-### 4.8 Wav2Vec2
-
-Wav2Vec2 is a self-supervised speech representation learning model developed by Facebook AI (now Meta AI). Here's an overview:
-
-## Architecture
-
-Wav2Vec2 uses a two-stage approach:
-
-1. **Feature Encoder (CNN)**: Processes raw audio waveforms through multiple convolutional layers to create latent representations
-2. **Transformer**: Contextualizes these representations using multi-head self-attention mechanisms
-
-## Pre-training Method
-
-The model uses **contrastive learning** with a masked prediction task:
-
-- Parts of the latent speech representations are masked
-- The model learns to identify the true quantized representation from a set of distractors
-- This is similar to BERT's masked language modeling but for speech
-
-## Key Advantages
-
-- **Self-supervised**: Can be pre-trained on large amounts of unlabeled audio data
-- **Transfer learning**: Fine-tunable for downstream tasks like ASR, speaker recognition, emotion detection
-- **Low-resource friendly**: Achieves strong performance even with limited labeled data for fine-tuning
-- **Feature extraction**: Can be used as a feature extractor, outputting contextual embeddings at various layers
-
-## Common Variants
-
-- **Wav2Vec2-Base**: ~95M parameters
-- **Wav2Vec2-Large**: ~317M parameters
-- **XLSR-53**: Cross-lingual version trained on 53 languages
-- **Wav2Vec2-BERT**: More recent variant with improved architecture
-
-## Typical Output Dimensionality
-
-For feature extraction: **(T', 768)** or **(T', 1024)** depending on the model variant, where T' is the downsampled time dimension.
-
-Would you like me to add this to your feature comparison table or explain any specific aspect in more detail?
-
-### 4.9 Model Comparison Summary
+### 4.8 Model Comparison Summary
 
 | Model                     | Input Type  | Parameters | Embedding Dim | Key Advantage                     |
 | ------------------------- | ----------- | ---------- | ------------- | --------------------------------- |
@@ -647,7 +607,6 @@ Would you like me to add this to your feature comparison table or explain any sp
 | LCNN                      | Spectrogram | ~0.8M      | 128           | MFM feature selection             |
 | RawNet3                   | Raw         | ~2.5M      | 512           | End-to-end learnable filters      |
 | SE-ResNet                 | Spectrogram | ~11.2M     | 1024          | Channel attention + deep residual |
-| Wav2Vec2-Large            | Raw         | ~95M       | 1024          | Large-scale contextual embeddings |
 
 ## 5. Experimental Setup
 

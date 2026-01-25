@@ -1,13 +1,12 @@
 # AI Voice Detector — Quick Overview
 
-
 This repository implements an end-to-end pipeline for detecting synthetic / deepfake audio and audio spoofing. It has been trimmed to support only the Fake-or-Real dataset (2-second clips). The project still provides model implementations, augmentation pipelines, and evaluation/visualization tools.
 
 For full, detailed documentation see: [DOCUMENTATION.md](DOCUMENTATION.md)
 
 ## Highlights
 
-- Models: LCNN, RawNet3, EfficientNet-B2, SEResNet, FusionNet, **Wav2Vec 2.0**, **HuBERT**, and **MobileViT**.
+- Models: LCNN, RawNet3, EfficientNet-B2, SEResNet.
 - **Real-time**: Streaming audio detection pipeline for live microphone input.
 - **Advanced Features**: Prosodic features (pitch, energy) and SSL representations.
 - **Domain Adaptation**: Tools for cross-dataset generalization (CORAL, MMD, DANN).
@@ -49,7 +48,6 @@ View and compare metrics across runs:
 ```bash
 python visualize_results.py --path "exp_result/*/metrics" --compare --output ./comparison_plots
 ```
-
 
 ## Features & Augmentations (Fake-or-Real focused)
 
