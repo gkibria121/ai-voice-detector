@@ -1,262 +1,61 @@
-## Methodology Overview
+ 
+## System Overview
 
 ```mermaid
-flowchart TD
-    %% Methodology Overview - High-Level Section Flow
-    classDef dataPrep fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    classDef feature fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    classDef augment fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
-    classDef model fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef train fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-    classDef eval fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-    classDef deploy fill:#e0f2f1,stroke:#00695c,stroke-width:2px
-
-    subgraph Phase1["Phase 1: Data Preparation"]
-        S1["1. Data Preparation<br/>& Preprocessing"]:::dataPrep
-        S2["2. Feature Extraction"]:::feature
-        S3["3. Data Augmentation"]:::augment
+flowchart LR
+    subgraph Input
+        A[Audio File]
     end
 
-    subgraph Phase2["Phase 2: Model Development"]
-        S4["4. Network Architectures"]:::model
-        S5["5. Experimental Setup"]:::train
-        S6["6. Training Procedure"]:::train
+    subgraph Preprocessing
+        B[Load & Resample<br/>16kHz, Mono]
+        C[Fixed Length<br/>64,600 samples]
     end
 
-    subgraph Phase3["Phase 3: Evaluation & Optimization"]
-        S7["7. Model Validation<br/>& Selection"]:::eval
-        S8["8. Ensemble Strategy"]:::model
-        S9["9. Inference Pipeline"]:::deploy
-        S10["10. Evaluation Metrics"]:::eval
+    subgraph Features["Feature Extraction"]
+        D[Log-Mel / LFCC<br/>CQT / Raw]
     end
 
-    subgraph Phase4["Phase 4: Production & Analysis"]
-        S11["11. Optimization<br/>Techniques"]:::train
-        S12["12. Reproducibility"]:::deploy
-        S13["13. Explainable AI"]:::eval
-        S14["14. Conclusion"]:::deploy
+    subgraph Training["Training Only"]
+        E[Data Augmentation]
     end
 
-    S1 --> S2
-    S2 --> S3
-    S3 --> S4
-    S4 --> S5
-    S5 --> S6
-    S6 --> S7
-    S7 --> S8
-    S8 --> S9
-    S9 --> S10
-    S10 --> S11
-    S11 --> S12
-    S12 --> S13
-    S13 --> S14
+    subgraph Model["Neural Network"]
+        F[EfficientNet-B2<br/>LCNN / SE-ResNet<br/>RawNet3]
+    end
+
+    subgraph Output
+        G{Softmax}
+        H[Bonafide]
+        I[Spoof]
+    end
+
+    A --> B --> C --> D
+    D --> E --> F
+    D --> F
+    F --> G
+    G -->|Score ≥ θ| H
+    G -->|Score < θ| I
 ```
 
-### Methodology Sections
+### Document Structure
 
-| Section | Title                            | Description                                                        |
-| ------- | -------------------------------- | ------------------------------------------------------------------ |
-| 1       | Data Preparation & Preprocessing | Dataset loading, audio standardization, fixed-length segmentation  |
-| 2       | Feature Extraction               | Log-Mel spectrogram, LFCC, CQT, MFCC, and multi-modal fusion       |
-| 3       | Data Augmentation                | Noise injection, RIR, pitch shifting, time stretching, SpecAugment |
-| 4       | Network Architectures            | SimpleCNN, EfficientNet-B2, LCNN, RawNet3, SE-ResNet               |
-| 5       | Experimental Setup               | Loss function, optimizer, learning rate scheduling, regularization |
-| 6       | Training Procedure               | Mixed precision, SWA, epoch training loop, checkpointing           |
-| 7       | Model Validation & Selection     | Score generation, EER computation, model selection criterion       |
-| 8       | Ensemble Strategy                | Multi-stream architecture, soft voting, joint optimization         |
-| 9       | Inference Pipeline               | Audio preprocessing, feature extraction, batch inference           |
-| 10      | Evaluation Metrics               | EER, accuracy, confusion matrix, ROC/AUC, DET curve                |
-| 11      | Optimization Techniques          | Mixed precision, TF32, channels-last layout, gradient accumulation |
-| 12      | Reproducibility                  | Random seed control, DataLoader seeding, configuration management  |
-| 13      | Explainable AI                   | GradCAM visualization, attention extraction, decision transparency |
-| 14      | Conclusion                       | Summary of contributions and future directions                     |
+| Section | Title                 | Description                                                       |
+| ------- | --------------------- | ----------------------------------------------------------------- |
+| 1       | Data Preparation      | Dataset loading, audio standardization, fixed-length segmentation |
+| 2       | Feature Extraction    | Log-Mel spectrogram, LFCC, CQT, multi-modal fusion                |
+| 3       | Data Augmentation     | Noise, RIR, pitch shifting, SpecAugment                           |
+| 4       | Network Architectures | SimpleCNN, EfficientNet-B2, LCNN, RawNet3, SE-ResNet              |
+| 5       | Training              | Loss, optimizer, regularization, SWA, training loop               |
+| 6       | Inference             | Pipeline stages, batch processing                                 |
+| 7       | Evaluation Metrics    | EER, accuracy, ROC/AUC, DET curve                                 |
+| 8       | Ensemble Strategy     | Multi-model fusion, soft voting                                   |
+| 9       | Optimization          | Mixed precision, TF32, memory layout                              |
+| 10      | Reproducibility       | Seed control, configuration management                            |
+| 11      | Explainability        | GradCAM visualization                                             |
+| 12      | Conclusion            | Summary and contributions                                         |
 
 ---
-
-## System Architecture Overview
-
-```mermaid
-graph TD
-    %% System Architecture Diagram
-    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
-    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
-    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
-
-    subgraph "Step 1-4: Data Pipeline"
-        Input["1. Raw Audio Input"]:::storage --> Load["2. Load & Decode"]:::process
-        Load --> Norm["3. Preprocess</br>16kHz | Mono | 64k Samples"]:::process
-        Norm --> Split{"4. Phase?"}:::decision
-
-        Split -- Training --> Aug["5a. Data Augmentation</br>Noise, RIR, Pitch, SpecAug etc"]:::process
-        Split -- Inference --> Clean["5b. Identity / Center Crop"]:::process
-
-        Aug --> Feat["6. Feature Extraction"]:::process
-        Clean --> Feat
-    end
-
-    subgraph "Step 6: Feature Space"
-        Feat --> Mel["Log-Mel Spectrogram"]:::storage
-        Feat --> LFCC["LFCC"]:::storage
-        Feat --> CQT["CQT"]:::storage
-        Feat --> OtherFeature["Other"]:::storage
-        Feat --> Raw["Raw Waveform"]:::storage
-    end
-
-    subgraph "Step 7: Model Backbone"
-        Mel --> CNN["7. EfficientNetB2 / SeResNet / LCNN / Ensemble"]:::process
-        LFCC --> CNN
-        CQT --> CNN
-        OtherFeature --> CNN
-        Raw --> RawNet["7. RawNet3 / SimpleCNN"]:::process
-    end
-
-    subgraph "Step 8-9: Decision Module"
-        CNN --> Emb["8. Embeddings"]:::storage
-        RawNet --> Emb
-        Emb --> Head["8. Classification Head"]:::process
-        Head --> Logits["Logits"]:::storage
-        Logits --> Softmax["9. Softmax Score"]:::process
-    end
-
-    Softmax --> Output["10. Final Prediction"]:::decision
-```
-
-### Pipeline Steps
-
-| Step | Component                   | Description                                                     |
-| ---- | --------------------------- | --------------------------------------------------------------- |
-| 1    | Raw Audio Input             | Audio file in WAV, FLAC, or MP3 format                          |
-| 2    | Load & Decode               | Read audio file and decode to waveform                          |
-| 3    | Preprocess                  | Resample to 16kHz, convert to mono, normalize to 64,600 samples |
-| 4    | Phase Decision              | Branch based on training or inference mode                      |
-| 5a   | Data Augmentation           | Apply noise, RIR, pitch shifting, SpecAugment (training only)   |
-| 5b   | Identity/Center Crop        | No augmentation, center crop if needed (inference only)         |
-| 6    | Feature Extraction          | Extract acoustic features (Mel, LFCC, CQT, or raw waveform)     |
-| 7    | Model Backbone              | Process features through CNN architecture                       |
-| 8    | Embeddings & Classification | Generate embeddings and pass through classification head        |
-| 9    | Softmax Score               | Convert logits to probability distribution                      |
-| 10   | Final Prediction            | Output bonafide/spoof classification                            |
-
-## Training & Validation Lifecycle
-
-```mermaid
-flowchart TD
-    %% Training Loop Diagram derived from main.py
-    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
-    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef final fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-
-    Start(["1. Start"]):::storage --> Init["2. Load Config & Reproducibility"]:::storage
-    Init --> EpochStart["3. Start Training Loop"]:::process
-
-    subgraph EpochLoop["Step 4-7: Training Loop (Repeat per Epoch)"]
-        Train["4. Train Epoch<br/>AMP Mixed Precision"]:::process
-        Validate["5. Validate Epoch<br/>Dev Set"]:::process
-        CheckEER["6. Compute Dev EER"]:::process
-
-        subgraph CheckBest["Step 6a-6d: Best Model Check"]
-            IsBest{"6a. Is Best<br/>Model?"}:::decision
-            SaveBest["6b. Save Best Model"]:::storage
-            EvalTest["6c. Evaluate on Test"]:::process
-            UpdateTracker["6d. Update Tracker"]:::process
-        end
-
-        SWA["7. Update SWA Weights"]:::process
-
-        Train --> Validate
-        Validate --> CheckEER
-        CheckEER --> IsBest
-        IsBest -->|New Best| SaveBest
-        IsBest -->|No Improvement| UpdateTracker
-        SaveBest --> EvalTest
-        EvalTest --> UpdateTracker
-        UpdateTracker --> SWA
-        SWA --> Train
-    end
-
-    EpochStart --> Train
-    Train -.->|Max Epochs| Finalize["8. Finalize Training"]:::process
-
-    Finalize --> ProcessSWA["9. Apply SWA &<br/>Update BN"]:::process
-    ProcessSWA --> FinalEval["10. Final Evaluation<br/>Test Set"]:::process
-    FinalEval --> Metrics["11. Save Metrics &<br/>Visualizations"]:::final
-    Metrics --> End(["12. End"]):::final
-```
-
-### Training Lifecycle Steps
-
-| Step | Phase          | Description                                            |
-| ---- | -------------- | ------------------------------------------------------ |
-| 1    | Start          | Initialize training process                            |
-| 2    | Load Config    | Load configuration file and set reproducibility seeds  |
-| 3    | Start Loop     | Begin epoch-based training loop                        |
-| 4    | Train Epoch    | Forward/backward pass with AMP mixed precision         |
-| 5    | Validate       | Evaluate model on development set                      |
-| 6    | Compute EER    | Calculate Equal Error Rate on validation predictions   |
-| 6a   | Best Check     | Compare current EER with best recorded EER             |
-| 6b   | Save Model     | Save checkpoint if new best model found                |
-| 6c   | Test Eval      | Optionally evaluate on test set                        |
-| 6d   | Update Tracker | Update training metrics and early stopping counter     |
-| 7    | SWA Update     | Update Stochastic Weight Averaging weights             |
-| 8    | Finalize       | Exit training loop after max epochs                    |
-| 9    | Apply SWA      | Apply averaged weights and update BatchNorm statistics |
-| 10   | Final Eval     | Evaluate final model on test set                       |
-| 11   | Save Metrics   | Save all metrics, plots, and visualizations            |
-| 12   | End            | Training complete                                      |
-
-## Inference Pipeline
-
-```mermaid
-flowchart TD
-    %% Inference Pipeline Flowchart
-    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
-    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef success fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
-    classDef warning fill:#ffcdd2,stroke:#c62828,stroke-width:2px
-    classDef xai fill:#e0f2f1,stroke:#00695c,stroke-width:2px,stroke-dasharray: 5 5
-
-    Input("1. Audio File"):::storage
-    Prep["2. Preprocess<br/>Resample & Pad"]:::process
-    Feat["3. Extract Features"]:::process
-    Model["4. Model Forward Pass"]:::process
-    Logits("5. Logits"):::storage
-    Soft{"6. Softmax<br/>> Threshold?"}:::decision
-
-    Real["7a. Bonafide"]:::success
-    Fake["7b. Spoof"]:::warning
-
-    XAI["Optional: XAI Analysis<br/>GradCAM / Attention"]:::xai
-    Vis["Optional: Heatmap Visualization"]:::xai
-
-    Input --> Prep
-    Prep --> Feat
-    Feat --> Model
-    Model --> Logits
-    Logits --> Soft
-
-    Soft -->|Yes| Real
-    Soft -->|No| Fake
-
-    Model -.-> XAI
-    XAI -.-> Vis
-```
-
-### Inference Steps
-
-| Step     | Component           | Description                                                      |
-| -------- | ------------------- | ---------------------------------------------------------------- |
-| 1        | Audio File          | Input audio file (WAV, FLAC, MP3)                                |
-| 2        | Preprocess          | Resample to 16kHz, convert to mono, pad/crop to 64,600 samples   |
-| 3        | Extract Features    | Compute Log-Mel spectrogram, LFCC, CQT, or use raw waveform      |
-| 4        | Model Forward Pass  | Run feature tensor through trained neural network                |
-| 5        | Logits              | Raw model output scores for each class                           |
-| 6        | Softmax & Threshold | Convert to probabilities and compare bonafide score to threshold |
-| 7a       | Bonafide            | Classification result if score >= threshold (genuine audio)      |
-| 7b       | Spoof               | Classification result if score < threshold (AI-generated audio)  |
-| Optional | XAI Analysis        | Generate GradCAM heatmap or attention visualization              |
-| Optional | Visualization       | Overlay heatmap on spectrogram for interpretability              |
 
 ## 1. Data Preparation and Preprocessing
 
