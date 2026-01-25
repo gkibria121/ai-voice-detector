@@ -736,135 +736,75 @@ The model checkpoint yielding the lowest EER on the validation set is selected f
 
 ## 8. Ensemble Strategy
 
-### 8.1 Motivation
+### 8.1 Strategic Motivation
 
-Ensemble methods reduce prediction variance and improve robustness by combining predictions from multiple models trained with different initializations, architectures, or hyperparameters.
+The deployment of an ensemble framework is motivated by the principle that diverse modeling approaches capture complementary aspects of the underlying data distribution. In the context of synthetic speech detection, different neural architectures exhibit distinct inductive biases: some are optimized for detecting local spectral artifacts, while others excel at modeling long-range temporal dependencies or learning global hierarchical features. By unifying these heterogeneous systems, the ensemble approach mitigates the individual weaknesses of constituent models, reduces prediction variance, and enhances overall generalization capability against unseen spoofing attacks.
 
-### 8.2 Implementation Architecture
+### 8.2 Architectural Framework
 
-The system implements an `EnsembleModel` wrapper class that unifies multiple heterogeneous models into a single cohesive unit. This design allows seamless integration with the existing training and inference pipelines.
+The proposed ensemble architecture integrates multiple deep learning models into a coherent decision-making system. Unlike naive averaging methods, our approach employs a sophisticated fusion mechanism that harmonizes diverse feature representations. The system operates by processing the input audio spectrogram through parallel architectural branches, each yielding a high-dimensional feature embedding and a probabilistic classification score.
 
-**Key Design Features:**
+To address the challenge of varying dimensionality across different network architectures, a learnable projection mechanism is introduced. This component maps the heterogeneous embedding spaces into a unified latent subspace, enabling mathematical aggregation of semantic features. This design facilitates both decision-level fusion (soft voting) and feature-level fusion, providing a comprehensive characterization of the input signal.
 
-1. **Heterogeneous Model Support:** The ensemble accepts models with different architectures, embedding dimensions, and feature extractors.
+### 8.3 Constituent Model Components
 
-2. **Unified Interface:** The wrapper exposes the same `forward(x, Freq_aug)` interface as individual models, returning `(embeddings, logits)`.
+The optimal ensemble configuration comprises three distinct architectures, selected for their complementary feature extraction capabilities:
 
-3. **Automatic Embedding Projection:** Since different architectures produce embeddings of varying dimensions (e.g., LCNN: 128, EfficientNet-B2: 1408, SE-ResNet: 1024), learned linear projections map each embedding to a common target dimension before averaging.
+1.  **Light CNN (LCNN)**: Utilized for its efficiency in detecting high-frequency artifacts through Max-Feature-Map activations, acting as a specialized detector for vocoder traces.
+2.  **Squeeze-and-Excitation ResNet (SE-ResNet)**: Incorporated to capture deep hierarchical patterns and channel-wise dependencies, providing robust representation of speaker identity and recording environment.
+3.  **EfficientNet-B2 with Attention**: Employed to leverage transfer learning advantages and effective spatial attention mechanisms, focusing on salient spectro-temporal regions indicative of manipulation.
 
-### 8.3 Ensemble Configuration Format
+### 8.4 System Diagram
 
-Ensembles are configured via JSON configuration files with a list of model configurations:
+The following diagram illustrates the multi-stream ensemble architecture, demonstrating the parallel processing pathways and the fusion mechanism.
 
-```json
-{
-  "model_config": [
-    {
-      "architecture": "LCNN",
-      "channels": [32, 48, 64, 32],
-      "dropout": 0.3,
-      "use_residual": true,
-      "att_bottleneck": 64,
-      "emb_dim": 128
-    },
-    {
-      "architecture": "SEResNet",
-      "dropout": 0.3,
-      "emb_dim": 128
-    },
-    {
-      "architecture": "EfficientNetB2",
-      "model_variant": "attention",
-      "dropout": 0.4,
-      "pretrained": true,
-      "att_bottleneck": 128
-    }
-  ]
-}
+```mermaid
+graph TD
+    Input[Input Audio Spectrogram] --> Branch1
+    Input --> Branch2
+    Input --> Branch3
+
+    subgraph "Feature Extraction Stage"
+        Branch1[Light CNN Stream]
+        Branch2[SE-ResNet Stream]
+        Branch3[EfficientNet-B2 Attention Stream]
+    end
+
+    Branch1 --> Embed1[Embedding & Logits]
+    Branch2 --> Embed2[Embedding & Logits]
+    Branch3 --> Embed3[Embedding & Logits]
+
+    subgraph "Harmonization & Fusion"
+        Embed1 --> Proj1[Learnable Projection]
+        Embed2 --> Proj2[Learnable Projection]
+        Embed3 --> Proj3[Learnable Projection]
+        
+        Proj1 --> FusedEmbed[Feature Aggregation]
+        Proj2 --> FusedEmbed
+        Proj3 --> FusedEmbed
+        
+        Embed1 --> SoftVote[Soft Voting / Logit Averaging]
+        Embed2 --> SoftVote
+        Embed3 --> SoftVote
+    end
+
+    FusedEmbed --> Rep[Unified Representation]
+    SoftVote --> Decision[Final Bonafide/Spoof Probability]
 ```
 
-Each entry in the `model_config` array specifies a complete model configuration including architecture type, hyperparameters, and optional variants.
+### 8.5 Information Fusion and Decision Making
 
-### 8.4 Embedding Dimension Harmonization
+The system employs a dual-strategy for information fusion:
 
-To handle heterogeneous embedding dimensions across models, the ensemble employs learned projection layers:
+**Logit Averaging (Soft Voting):**
+The primary decision mechanism utilizes soft voting, where the predicted class probabilities from each constituent model are averaged to produce the final ensemble prediction. This method has been theoretically shown to minimize the expected error rate under the assumption of uncorrelated errors among ensemble members. By aggregating the confidence scores, the system filters out idiosyncratic noise associated with individual models, resulting in a more calibrated and reliable classification.
 
-**Target Dimension Selection:**
-$$D_{\text{target}} = \max_{m \in \mathcal{M}} D_m$$
+**Embedding Aggregation:**
+For tasks requiring interpretability or downstream analysis, the feature embeddings are projected to a common dimensionality and averaged. This fused representation encapsulates the holistic acoustic characteristics captured by the entire ensemble, serving as a dense descriptor of the audio signal's authenticity.
 
-where $D_m$ is the embedding dimension of model $m$ and $\mathcal{M}$ is the set of ensemble members.
+### 8.6 Joint Optimization Strategy
 
-**Projection Function:**
-
-$$
-\mathbf{e}_m^{\text{proj}} = \begin{cases}
-\mathbf{e}_m & \text{if } D_m = D_{\text{target}} \\
-W_m \mathbf{e}_m + \mathbf{b}_m & \text{otherwise}
-\end{cases}
-$$
-
-where $W_m \in \mathbb{R}^{D_{\text{target}} \times D_m}$ is a learned projection matrix initialized with Xavier uniform, and $\mathbf{b}_m$ is a zero-initialized bias.
-
-### 8.5 Soft Voting (Logit Averaging)
-
-Given $M$ trained models $\{f_1, \ldots, f_M\}$, the ensemble prediction is computed via soft voting:
-
-$$p_{\text{ensemble}}(y|\mathbf{x}) = \frac{1}{M}\sum_{m=1}^{M} p_m(y|\mathbf{x})$$
-
-$$\hat{y} = \arg\max_y p_{\text{ensemble}}(y|\mathbf{x})$$
-
-**Implementation:**
-The logits from each model are stacked and averaged before softmax:
-
-```
-logits_stacked = torch.stack([out_1, out_2, ..., out_M], dim=0)  # (M, B, C)
-avg_logits = torch.mean(logits_stacked, dim=0)                   # (B, C)
-```
-
-### 8.6 Score-Level Fusion
-
-For EER evaluation, scores are averaged:
-
-$$s_{\text{ensemble}}(\mathbf{x}) = \frac{1}{M}\sum_{m=1}^{M} s_m(\mathbf{x})$$
-
-This provides a robust aggregate score for threshold-based decision-making.
-
-### 8.7 Embedding Fusion
-
-Embeddings are fused for use in downstream tasks (e.g., explainability, visualization):
-
-$$\mathbf{e}_{\text{ensemble}} = \frac{1}{M}\sum_{m=1}^{M} \mathbf{e}_m^{\text{proj}}$$
-
-The averaged embedding preserves information from all constituent models while maintaining a consistent dimensionality.
-
-### 8.8 Best-Performing Ensemble Configuration
-
-Our best-performing ensemble consists of:
-
-| Model                       | Feature         | Parameters | Embedding Dim | Role                                          |
-| --------------------------- | --------------- | ---------- | ------------- | --------------------------------------------- |
-| LCNN                        | Mel-spectrogram | ~0.8M      | 128           | Lightweight artifact detector with MFM        |
-| SE-ResNet                   | Mel-spectrogram | ~11.2M     | 1024          | Deep residual features with channel attention |
-| EfficientNet-B2 (Attention) | Mel-spectrogram | ~9.5M      | 2816          | Transfer learning + spatial attention         |
-
-**Total Ensemble Parameters:** ~21.5M
-
-This combination leverages complementary architectural inductive biases:
-
-- **LCNN** excels at detecting local spectral artifacts through competitive MFM activations
-- **SE-ResNet** captures hierarchical temporal patterns with channel-wise attention
-- **EfficientNet-B2** provides robust low-level features from ImageNet pretraining with learnable spatial attention
-
-### 8.9 Ensemble Training Strategy
-
-The ensemble is trained end-to-end with all models receiving the same input and gradients flowing through all branches:
-
-1. **Shared Input:** All models process the same preprocessed spectrogram
-2. **Independent Forward Pass:** Each model computes its own embeddings and logits
-3. **Joint Loss:** The averaged logits are used to compute the cross-entropy loss
-4. **Unified Backpropagation:** Gradients propagate through all models simultaneously
-
-This joint training allows models to specialize and capture complementary features rather than redundant patterns.
+The ensemble is optimized using an end-to-end joint training protocol. Rather than training models in isolation, the entire framework is updated simultaneously. The loss function is computed based on the aggregated predictions, allowing gradients to propagate back through all branches. This collaborative learning dynamic encourages the constituent models to specialize in different subsets of the data or distinct artifact types, effectively maximizing the diversity and coverage of the ensemble.
 
 ## 9. Inference Pipeline
 
