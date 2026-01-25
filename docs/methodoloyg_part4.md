@@ -1,11 +1,10 @@
-
 ## 9. Inference Pipeline
 
 ### 9.1 Inference Flow
 
 ```mermaid
 flowchart TD
-    %% Inference Pipeline Flowchart
+    %% Inference Pipeline Flowchart - 6 Stages
     classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px
     classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
     classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
@@ -13,46 +12,40 @@ flowchart TD
     classDef warning fill:#ffcdd2,stroke:#c62828,stroke-width:2px
     classDef xai fill:#e0f2f1,stroke:#00695c,stroke-width:2px,stroke-dasharray: 5 5
 
-    Input("1. Audio File"):::storage
-    Prep["2. Preprocess<br/>Resample & Pad"]:::process
-    Feat["3. Extract Features"]:::process
-    Model["4. Model Forward Pass"]:::process
-    Logits("5. Logits"):::storage
-    Soft{"6. Softmax<br/>> Threshold?"}:::decision
+    Input("Audio Input"):::storage
+    Stage1["Stage 1: Audio Loading<br/>& Preprocessing"]:::process
+    Stage2["Stage 2: Fixed-Length<br/>Normalization"]:::process
+    Stage3["Stage 3: Feature<br/>Extraction"]:::process
+    Stage4["Stage 4: Model<br/>Inference"]:::process
+    Stage5{"Stage 5: Decision<br/>Making"}:::decision
 
-    Real["7a. Bonafide"]:::success
-    Fake["7b. Spoof"]:::warning
+    Real["Bonafide<br/>(Genuine Audio)"]:::success
+    Fake["Spoof<br/>(AI-Generated)"]:::warning
 
-    XAI["Optional: XAI Analysis<br/>GradCAM / Attention"]:::xai
-    Vis["Optional: Heatmap Visualization"]:::xai
+    Stage6["Stage 6: XAI Analysis<br/>& Visualization"]:::xai
 
-    Input --> Prep
-    Prep --> Feat
-    Feat --> Model
-    Model --> Logits
-    Logits --> Soft
+    Input --> Stage1
+    Stage1 --> Stage2
+    Stage2 --> Stage3
+    Stage3 --> Stage4
+    Stage4 --> Stage5
 
-    Soft -->|Yes| Real
-    Soft -->|No| Fake
+    Stage5 -->|Score ≥ Threshold| Real
+    Stage5 -->|Score < Threshold| Fake
 
-    Model -.-> XAI
-    XAI -.-> Vis
+    Stage4 -.->|Optional| Stage6
 ```
 
 ### 9.1.1 Inference Steps Overview
 
-| Step     | Component           | Description                                                      |
-| -------- | ------------------- | ---------------------------------------------------------------- |
-| 1        | Audio File          | Input audio file (WAV, FLAC, MP3)                                |
-| 2        | Preprocess          | Resample to 16kHz, convert to mono, pad/crop to 64,600 samples   |
-| 3        | Extract Features    | Compute Log-Mel spectrogram, LFCC, CQT, or use raw waveform      |
-| 4        | Model Forward Pass  | Run feature tensor through trained neural network                |
-| 5        | Logits              | Raw model output scores for each class                           |
-| 6        | Softmax & Threshold | Convert to probabilities and compare bonafide score to threshold |
-| 7a       | Bonafide            | Classification result if score >= threshold (genuine audio)      |
-| 7b       | Spoof               | Classification result if score < threshold (AI-generated audio)  |
-| Optional | XAI Analysis        | Generate GradCAM heatmap or attention visualization              |
-| Optional | Visualization       | Overlay heatmap on spectrogram for interpretability              |
+| Stage | Component                               | Description                                                          |
+| ----- | --------------------------------------- | -------------------------------------------------------------------- |
+| 1     | Audio Loading & Preprocessing           | Load audio, convert to mono, resample to 16kHz                       |
+| 2     | Fixed-Length Normalization              | Pad/crop to 64,600 samples (~4 seconds)                              |
+| 3     | Feature Extraction                      | Compute Log-Mel spectrogram, LFCC, CQT, or use raw waveform          |
+| 4     | Model Inference                         | Forward pass through neural network, generate logits & probabilities |
+| 5     | Decision Making                         | Compare bonafide score to threshold, classify as bonafide or spoof   |
+| 6     | XAI Analysis & Visualization (Optional) | Generate GradCAM heatmap, overlay on spectrogram                     |
 
 ### 9.2 Pipeline Stages
 
@@ -72,21 +65,19 @@ Acoustic features are extracted from the preprocessed waveform using the specifi
 
 **Stage 4: Model Inference**
 
-The model is set to evaluation mode to disable training-specific operations such as dropout and batch normalization updates. Inference mode is activated to disable gradient computation, reducing memory consumption and improving computational speed. The feature tensor is passed through the model to generate both embedding representations and classification logits. The logits are then converted to probability scores using the softmax function.
+The model is set to evaluation mode to disable training-specific operations such as dropout and batch normalization updates. Inference mode is activated to disable gradient computation, reducing memory consumption and improving computational speed. The feature tensor is passed through the model to generate both embedding representations and classification logits.
 
-**Stage 5: Decision Making**
+**Stage 5: Probability Computation**
 
-The decision is based on the bonafide class logit score. If this score exceeds a predetermined threshold, the audio is classified as "Bonafide" (genuine human speech); otherwise, it is classified as "Spoof" (AI-generated). The confidence level is extracted from the probability distribution, representing the model's certainty in its prediction.
+The logits are converted to probability scores using the softmax function. This transformation maps the raw model outputs to a probability distribution across the two classes (bonafide and spoof), where values range from 0 to 1 and sum to 1.
 
-### 9.2 Batch Inference Optimization
+**Stage 6: Decision Making**
 
-For processing multiple audio files efficiently, batch inference is implemented to reduce computational overhead and improve throughput.
+The bonafide probability score is compared against a predefined threshold (typically 0.5). If the score is greater than or equal to the threshold, the audio is classified as bonafide (genuine). If the score is below the threshold, the audio is classified as spoof (AI-generated or manipulated).
 
-The batch processing approach divides the collection of audio files into fixed-size batches (typically 32 files per batch). For each batch, audio files are loaded and preprocessed in parallel, and their corresponding features are extracted independently. These individual feature representations are then stacked into a single tensor with an additional batch dimension.
+**Stage 7: Post-Processing and Visualization (Optional)**
 
-The batched tensor is fed into the model in a single forward pass, allowing the GPU to process multiple samples simultaneously and leverage parallel computation capabilities. This approach significantly reduces per-sample inference time compared to sequential processing, as it amortizes model loading overhead and maximizes hardware utilization.
-
-The resulting logit scores are extracted for all samples in the batch and accumulated across all batches to produce final predictions for the entire dataset. This batching strategy is particularly effective for large-scale evaluation scenarios where thousands of audio files need to be processed.
+For interpretability, the system can perform Explainable AI (XAI) analysis using techniques like GradCAM. This involves a backward pass from the target class score to the last convolutional layer to compute gradient-weighted activation maps. These maps are upsampled and overlaid on the original spectrogram to visualize the time-frequency regions that contributed most to the model's decision.
 
 ## 10. Evaluation Metrics
 
@@ -167,17 +158,7 @@ $$\text{AUC} = \int_0^1 \text{TPR}(\text{FPR}^{-1}(t)) \, dt$$
 - AUC = 0.5: Random classifier
 - AUC > 0.9: Excellent performance
 
-### 10.6 Detection Error Tradeoff (DET) Curve
-
-The DET curve plots FRR against FAR across all possible thresholds on a normal deviate scale, providing a comprehensive visualization of system performance:
-
-$$\text{DET}: \Phi^{-1}(\text{FRR}(\theta)) \text{ vs. } \Phi^{-1}(\text{FAR}(\theta))$$
-
-where $\Phi^{-1}$ is the inverse standard normal CDF.
-
-The DET curve provides better visualization of error trade-offs at low error rates compared to ROC curves.
-
-### 10.7 Metrics Summary Table
+### 10.6 Metrics Summary Table
 
 | Metric              | Primary Use                           | Threshold-Dependent         |
 | ------------------- | ------------------------------------- | --------------------------- |
@@ -186,7 +167,6 @@ The DET curve provides better visualization of error trade-offs at low error rat
 | Confusion Matrix    | Error analysis                        | Yes                         |
 | Precision/Recall/F1 | Per-class performance                 | Yes                         |
 | ROC AUC             | Overall discrimination ability        | No                          |
-| DET Curve           | Error trade-off visualization         | No                          |
 
 ## 11. Optimization Techniques
 

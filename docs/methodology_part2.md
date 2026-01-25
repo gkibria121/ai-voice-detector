@@ -1,4 +1,3 @@
-
 ## 4. Network Architectures
 
 ### 4.1 Overview
@@ -12,6 +11,7 @@ We employed a diverse set of deep neural network architectures, each offering di
 | EfficientNet-B2           |        ✓        |  ✓   |  ✓  |      ✗       |
 | EfficientNet-B2 Attention |        ✓        |  ✓   |  ✓  |      ✗       |
 | LCNN                      |        ✓        |  ✓   |  ✓  |      ✗       |
+| LCNN Large                |        ✓        |  ✓   |  ✓  |      ✗       |
 | SE-ResNet                 |        ✓        |  ✓   |  ✓  |      ✗       |
 | RawNet3                   |        ✗        |  ✗   |  ✗  |      ✓       |
 | SimpleCNN                 |        ✗        |  ✗   |  ✗  |      ✓       |
@@ -40,7 +40,7 @@ flowchart TD
     classDef pool fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
     classDef fc fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
     classDef output fill:#ffcdd2,stroke:#c62828,stroke-width:2px
-    
+
     subgraph Layer1[" "]
         direction LR
         Input["Input<br/>(1, 64600)"]:::input
@@ -48,10 +48,10 @@ flowchart TD
         Pool1["MaxPool(4)"]:::pool
         Conv2["Conv1D(32→64, k=3, s=1)<br/>BatchNorm → ReLU"]:::conv
         Pool2["MaxPool(4)"]:::pool
-        
+
         Input --> Conv1 --> Pool1 --> Conv2 --> Pool2
     end
-    
+
     subgraph Layer2[" "]
         direction LR
         Conv3["Conv1D(64→128, k=3, s=1)<br/>BatchNorm → ReLU"]:::conv
@@ -59,10 +59,10 @@ flowchart TD
         AdaptPool["Adaptive Average Pooling (1)"]:::pool
         FC["Dropout(0.5) → FC(128→64) → ReLU<br/>Dropout(0.5) → FC(64→2)"]:::fc
         Output["Output<br/>(2 classes)"]:::output
-        
+
         Conv3 --> Pool3 --> AdaptPool --> FC --> Output
     end
-    
+
     Layer1 --> Layer2
 ```
 
@@ -104,18 +104,18 @@ flowchart LR
     classDef fc fill:#e1f5fe,stroke:#01579b,stroke-width:2px
     classDef dropout fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
     classDef output fill:#ffcdd2,stroke:#c62828,stroke-width:2px
-    
+
     Input["Input<br/>(1408)"]:::input
-    
+
     Drop1["Dropout(0.3)"]:::dropout
     FC1["Linear(512)<br/>BatchNorm → ReLU"]:::fc
-    
+
     Drop2["Dropout(0.3)"]:::dropout
     FC2["Linear(256)<br/>BatchNorm → ReLU"]:::fc
-    
+
     Drop3["Dropout(0.3)"]:::dropout
     FC3["Linear(2)"]:::output
-    
+
     Input --> Drop1 --> FC1 --> Drop2 --> FC2 --> Drop3 --> FC3
 
 ```
@@ -162,18 +162,18 @@ flowchart LR
     classDef fc fill:#e1f5fe,stroke:#01579b,stroke-width:2px
     classDef dropout fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
     classDef output fill:#ffcdd2,stroke:#c62828,stroke-width:2px
-    
+
     Input["Input<br/>(2816)"]:::input
-    
+
     Drop1["Dropout(0.3)"]:::dropout
     FC1["Linear(512)<br/>BatchNorm → ReLU"]:::fc
-    
+
     Drop2["Dropout(0.3)"]:::dropout
     FC2["Linear(256)<br/>BatchNorm → ReLU"]:::fc
-    
+
     Drop3["Dropout(0.3)"]:::dropout
     FC3["Linear(2)"]:::output
-    
+
     Input --> Drop1 --> FC1 --> Drop2 --> FC2 --> Drop3 --> FC3
 ```
 
@@ -209,27 +209,27 @@ flowchart TD
     classDef attention fill:#e0f2f1,stroke:#00695c,stroke-width:2px
     classDef fc fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
     classDef output fill:#ffcdd2,stroke:#c62828,stroke-width:2px
-    
+
     Input["Input<br/>(1, 128, T)"]:::input
-    
+
     Block1["Conv-MFM Block (32)"]:::conv
     Pool1["MaxPool(2×2)"]:::pool
-    
+
     Block2["Conv-MFM Block (48)<br/>Residual Block (48)"]:::conv
     Pool2["MaxPool(2×2)"]:::pool
-    
+
     Block3["Conv-MFM Block (64)<br/>Residual Block (64)"]:::conv
     Pool3["MaxPool(2×2)"]:::pool
-    
+
     Block4["Conv-MFM Block (32)<br/>Residual Block (32)"]:::conv
     Pool4["MaxPool(2×2)"]:::pool
-    
+
     ASP["Attentive Statistics Pooling"]:::attention
-    
+
     FC["FC-MFM (256)<br/>FC-MFM (128)<br/>Linear(2)"]:::fc
-    
+
     Output["Output<br/>(2 classes)"]:::output
-    
+
     Input --> Block1 --> Pool1 --> Block2 --> Pool2 --> Block3 --> Pool3 --> Block4 --> Pool4 --> ASP --> FC --> Output
 
 ```
@@ -265,7 +265,42 @@ AttentiveStatPool (64) → Linear(128) → MFM1D → BatchNorm(64)
 → Dropout(0.3) → Linear(2)
 ```
 
-### 4.6 RawNet3
+### 4.6 LCNN Large
+
+**Architecture Description:**
+
+LCNN Large is a scaled-up variant of the standard LCNN, designed to capture more complex acoustic patterns through increased model capacity. It features wider convolutional layers and a deeper classification head, making it suitable for larger-scale datasets where the standard model might underfit.
+
+**Key Specifications:**
+
+- **Input:** Log-Mel Spectrogram / LFCC / CQT $(B, 1, 128, T)$
+- **Backbone:** 4-stage LCNN with doubled channel width
+- **Parameters:** ~3.2M
+- **Output Embedding:** 256-dimensional feature vector
+
+**Architectural Enhancements:**
+
+1.  **Increased Width:**
+    The channel dimensions in the backbone are doubled compared to the standard model:
+    `[32, 48, 64, 32]` $\rightarrow$ `[64, 96, 128, 64]`
+
+2.  **Expanded Attention Bottleneck:**
+    The attention mechanism uses a larger bottleneck size (128 vs 64) to capture more fine-grained temporal statistics.
+
+3.  **Deeper Classification Head:**
+    An additional fully connected layer is introduced to process the higher-dimensional embeddings:
+
+```
+AttentiveStatPool (128) → Linear(256) → MFM1D → BatchNorm(128)
+→ Dropout(0.4) → Linear(512) → BatchNorm → ReLU
+→ Dropout(0.4) → Linear(256) → BatchNorm → ReLU
+→ Dropout(0.4) → Linear(2)
+```
+
+4.  **Stronger Regularization:**
+    Dropout rate is increased to $p=0.4$ to prevent overfitting given the increased parameter count.
+
+### 4.7 RawNet3
 
 **Architecture Description:**
 
@@ -300,25 +335,25 @@ flowchart TD
     classDef sinc fill:#e1f5fe,stroke:#01579b,stroke-width:2px
     classDef res fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
     classDef pool fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
-    
+
     Input["Input<br/>(Raw Waveform)"]:::input
-    
+
     Sinc["SincConv(64)<br/>|Abs|"]:::sinc
-    
+
     Res1["Res2Net(64→64)"]:::res
     Pool1["AvgPool(3,2)"]:::pool
-    
+
     Res2["Res2Net(64→128)"]:::res
     Pool2["AvgPool(3,2)"]:::pool
-    
+
     Res3["Res2Net(128→256)"]:::res
     Pool3["AvgPool(3,2)"]:::pool
-    
+
     Res4["Res2Net(256→512)"]:::res
     Pool4["AvgPool(3,2)"]:::pool
-    
+
     Output["Output<br/>(512 features)"]:::input
-    
+
     Input --> Sinc --> Res1 --> Pool1 --> Res2 --> Pool2 --> Res3 --> Pool3 --> Res4 --> Pool4 --> Output
 ```
 
@@ -332,7 +367,7 @@ flowchart TD
 Embedding (512) → Linear(256) → ReLU → Dropout(0.3) → Linear(2)
 ```
 
-### 4.7 SE-ResNet
+### 4.8 SE-ResNet
 
 **Architecture Description:**
 
@@ -380,7 +415,7 @@ Embedding (1024) → Linear(512) → BatchNorm → ReLU → Dropout(0.3)
 → Linear(256) → BatchNorm → ReLU → Dropout(0.3) → Linear(2)
 ```
 
-### 4.8 Model Comparison Summary
+### 4.9 Model Comparison Summary
 
 | Model                     | Input Type  | Parameters | Embedding Dim | Key Advantage                     |
 | ------------------------- | ----------- | ---------- | ------------- | --------------------------------- |
@@ -388,6 +423,7 @@ Embedding (1024) → Linear(512) → BatchNorm → ReLU → Dropout(0.3)
 | EfficientNet-B2           | Spectrogram | ~9.2M      | 1408          | Transfer learning from ImageNet   |
 | EfficientNet-B2 Attention | Spectrogram | ~9.5M      | 2816          | Attention-based temporal modeling |
 | LCNN                      | Spectrogram | ~0.8M      | 128           | MFM feature selection             |
+| LCNN Large                | Spectrogram | ~3.2M      | 256           | High capacity, deep classifier    |
 | RawNet3                   | Raw         | ~2.5M      | 512           | End-to-end learnable filters      |
 | SE-ResNet                 | Spectrogram | ~11.2M     | 1024          | Channel attention + deep residual |
 

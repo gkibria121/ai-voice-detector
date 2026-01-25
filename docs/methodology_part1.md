@@ -39,20 +39,20 @@ flowchart LR
 
 ### Document Structure
 
-| Section | Title                 | Description                                                       |
-| ------- | --------------------- | ----------------------------------------------------------------- |
-| 1       | Data Preparation      | Dataset loading, audio standardization, fixed-length segmentation |
-| 2       | Feature Extraction    | Log-Mel spectrogram, LFCC, CQT,Raw, Chroma, Spectral contrast, multi-modal fusion                |
-| 3       | Data Augmentation     | Noise, RIR, pitch shifting, SpecAugment                           |
-| 4       | Network Architectures | SimpleCNN, EfficientNet-B2, LCNN, RawNet3, SE-ResNet              |
-| 5       | Training              | Loss, optimizer, regularization, SWA, training loop               |
-| 6       | Inference             | Pipeline stages, batch processing                                 |
-| 7       | Evaluation Metrics    | EER, accuracy, ROC/AUC                              |
-| 8       | Ensemble Strategy     | Multi-model fusion, soft voting                                   |
-| 9       | Optimization          | Mixed precision, TF32, memory layout                              |
-| 10      | Reproducibility       | Seed control, configuration management                            |
-| 11      | Explainability        | GradCAM visualization                                             |
-| 12      | Conclusion            | Summary and contributions                                         |
+| Section | Title                 | Description                                                                       |
+| ------- | --------------------- | --------------------------------------------------------------------------------- |
+| 1       | Data Preparation      | Dataset loading, audio standardization, fixed-length segmentation                 |
+| 2       | Feature Extraction    | Log-Mel spectrogram, LFCC, CQT,Raw, Chroma, Spectral contrast, multi-modal fusion |
+| 3       | Data Augmentation     | Noise, RIR, pitch shifting, SpecAugment                                           |
+| 4       | Network Architectures | SimpleCNN, EfficientNet-B2, LCNN, RawNet3, SE-ResNet                              |
+| 5       | Training              | Loss, optimizer, regularization, SWA, training loop                               |
+| 6       | Inference             | Pipeline stages, batch processing                                                 |
+| 7       | Evaluation Metrics    | EER, accuracy, ROC/AUC                                                            |
+| 8       | Ensemble Strategy     | Multi-model fusion, soft voting                                                   |
+| 9       | Optimization          | Mixed precision, TF32, memory layout                                              |
+| 10      | Reproducibility       | Seed control, configuration management                                            |
+| 11      | Explainability        | GradCAM visualization                                                             |
+| 12      | Conclusion            | Summary and contributions                                                         |
 
 ---
 
@@ -67,8 +67,13 @@ The system was developed and evaluated using the "Fake-or-Real" dataset, which c
 All audio samples undergo standardized preprocessing to ensure consistency across the pipeline. Audio files are loaded using the `soundfile` library, which provides automatic format detection and efficient decoding for multiple audio formats including WAV, FLAC, and MP3.
 The preprocessing pipeline consists of the following operations:
 **Step 1: Format Conversion**
+Audio files are loaded using the `soundfile` library, which automatically detects and decodes the audio format (e.g., FLAC, WAV) into a floating-point tensor representation.
+
 **Step 2: Mono Conversion**
+To ensure consistent input dimensions, multi-channel audio signals (e.g., stereo) are downmixed to mono by calculating the mean amplitude across all channels.
+
 **Step 3: Resampling**
+The system processes audio at a standard sampling rate of 16 kHz. Feature extraction parameters are tuned for this rate to adhere to the Nyquist-Shannon sampling theorem for speech signals up to 8 kHz.
 The sampling rate was selected based on the Nyquist-Shannon sampling theorem, which ensures adequate representation of speech frequencies (typically below 8 kHz) while maintaining computational tractability.
 
 ### 1.3 Fixed-Length Segmentation

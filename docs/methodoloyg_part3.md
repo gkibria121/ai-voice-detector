@@ -14,12 +14,12 @@ flowchart TD
     Start(["1. Start"]):::storage --> Init["2. Load Config & Reproducibility"]:::storage
     Init --> EpochStart["3. Start Training Loop"]:::process
 
-    subgraph EpochLoop["Step 4-7: Training Loop (Repeat per Epoch)"]
+    subgraph EpochLoop["Loop (Repeat per Epoch)"]
         Train["4. Train Epoch<br/>AMP Mixed Precision"]:::process
         Validate["5. Validate Epoch<br/>Dev Set"]:::process
         CheckEER["6. Compute Dev EER"]:::process
 
-        subgraph CheckBest["Step 6a-6d: Best Model Check"]
+        subgraph CheckBest["Best Model Check"]
             IsBest{"6a. Is Best<br/>Model?"}:::decision
             SaveBest["6b. Save Best Model"]:::storage
             EvalTest["6c. Evaluate on Test"]:::process
