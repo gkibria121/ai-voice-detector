@@ -58,7 +58,9 @@ def load_model(config_path: str, weights_path: str, device: torch.device):
                 _model_cls = getattr(module, "Model")
             
             submodel = _model_cls(mconf).to(device)
-            print(f"Loaded sub-model[{idx}]: {mconf.get('architecture')}")
+            submodel.config_architecture = arch
+            submodel.config_variant = model_variant
+            print(f"Loaded sub-model[{idx}]: {arch} (variant: {model_variant})")
             models.append(submodel)
         
         # Create ensemble wrapper (same as in main.py)
@@ -366,42 +368,199 @@ def run_occlusion(model, input_tensor, spectrogram_vis, base_name, output_dir, d
         visualize_saliency(heatmap, input_spectrogram=vis_input, save_path=None)
 
 def run_gradcam(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class, show_plots, save_plots):
-    """Run Grad-CAM."""
+    """Run Grad-CAM. Handles both single models and ensembles."""
     print("\n[6/6] Running Grad-CAM...")
     
-    target_layer = find_gradcam_target_layer(model)
-    
-    if target_layer is None:
-        print("  ⚠ Could not find suitable convolutional layer - skipping")
-        return
+    # Check for ensemble
+    if hasattr(model, 'is_ensemble') and model.is_ensemble:
+        print("  Ensemble detected - generating visualizations for all components...")
         
-    print(f"  Using target layer: {target_layer}")
-    
-    gradcam = GradCAM(model, target_layer, device)
-    heatmap = gradcam.compute(input_tensor, target_class=target_class)
-    
-    if heatmap is not None:
-        # Resize heatmap to match input size
-        if heatmap.ndim == 2:  # 2D Spectrogram
-            h = heatmap.unsqueeze(0).unsqueeze(0)
-            target_h, target_w = input_tensor.shape[2], input_tensor.shape[3]
-            h = torch.nn.functional.interpolate(h, size=(target_h, target_w), mode='bilinear', align_corners=False)
-            heatmap = h.squeeze()
-        elif heatmap.ndim == 1:  # 1D Raw
-            h = heatmap.unsqueeze(0).unsqueeze(0)
-            target_l = input_tensor.shape[2]
-            h = torch.nn.functional.interpolate(h, size=(target_l,), mode='linear', align_corners=False)
-            heatmap = h.squeeze()
-    
+        all_heatmaps = []
+        all_confidences = []
+        model_names = []
+        
+        # 1. Process each sub-model
+        for i, submodel in enumerate(model.models):
+            # Determine name
+            arch = getattr(submodel, 'config_architecture', f"SubModel{i}")
+            variant = getattr(submodel, 'config_variant', "")
+            name_suffix = f"model{i}_{arch}"
+            if variant:
+                name_suffix += f"_{variant}"
+            
+            model_names.append(name_suffix)
+            print(f"\n  -- Processing {name_suffix} --")
+            
+            # Compute confidence (prob of target class)
+            # We need to run forward pass on this sub-model
+            submodel.eval()
+            with torch.no_grad():
+                # Submodels return (emb, logits) usually, or just logits depending on arch
+                # The EnsembleModel wrapper handles the call signature: emb, out = m(x)
+                try:
+                    _, logits = submodel(input_tensor)
+                    probs = torch.nn.functional.softmax(logits, dim=1)
+                    
+                    # Determine target class if not set
+                    current_target = target_class
+                    if current_target is None:
+                        current_target = logits.argmax(dim=1).item()
+                        
+                    confidence = probs[0, current_target].item()
+                    all_confidences.append(confidence)
+                    print(f"     Confidence (Class {current_target}): {confidence:.4f}")
+                except Exception as e:
+                    print(f"     Could not compute confidence: {e}")
+                    all_confidences.append(1.0) # Default weight
+            
+            # Find target layer for this sub-model
+            target_layer = find_gradcam_target_layer(submodel)
+            
+            if target_layer is None:
+                print(f"     ⚠ Could not find suitable layer for {name_suffix}")
+                all_heatmaps.append(None)
+                continue
+                
+            # Run Grad-CAM
+            gradcam = GradCAM(submodel, target_layer, device)
+            heatmap = gradcam.compute(input_tensor, target_class=target_class)
+            
+            if heatmap is not None:
+                # Resize to match input dimensions
+                if input_tensor.ndim == 4: # Spectrogram (B, C, H, W)
+                    target_h, target_w = input_tensor.shape[2], input_tensor.shape[3]
+                    
+                    if heatmap.ndim == 1:
+                        # 1D Heatmap on 2D Input (e.g. LCNN might return Frequency-only map [H])
+                        if heatmap.shape[0] == target_h:
+                            # Assume Frequency axis, expand Time
+                            heatmap = heatmap.unsqueeze(1).expand(-1, target_w)
+                        elif heatmap.shape[0] == target_w:
+                            # Assume Time axis, expand Frequency
+                            heatmap = heatmap.unsqueeze(0).expand(target_h, -1)
+                        else:
+                            # Mismatch - treat as [L, 1] and stretch
+                            h = heatmap.view(heatmap.shape[0], 1).unsqueeze(0).unsqueeze(0)
+                            h = torch.nn.functional.interpolate(h, size=(target_h, target_w), mode='bilinear', align_corners=False)
+                            heatmap = h.squeeze()
+                            
+                    elif heatmap.ndim == 2:
+                        h = heatmap.unsqueeze(0).unsqueeze(0)
+                        h = torch.nn.functional.interpolate(h, size=(target_h, target_w), mode='bilinear', align_corners=False)
+                        heatmap = h.squeeze()
+                        
+                elif input_tensor.ndim == 3: # Raw Audio (B, C, L)
+                    target_l = input_tensor.shape[2]
+                    
+                    h = heatmap
+                    if h.ndim == 2:
+                        h = h.view(1, 1, -1) # Flatten? Or handle 2D->1D? 
+                        # If 2D on 1D input, likely F,T -> L. But messy. 
+                        # Assuming 1D-ish.
+                        pass 
+                        
+                    if h.ndim == 1:
+                         h = h.unsqueeze(0).unsqueeze(0)
+                    
+                    # Interpolate
+                    h = torch.nn.functional.interpolate(h, size=(target_l,), mode='linear', align_corners=False)
+                    heatmap = h.squeeze()
+
+                all_heatmaps.append(heatmap)
+                
+                # Save individual plot
+                vis_input = spectrogram_vis if spectrogram_vis is not None else input_tensor.detach().cpu().numpy()
+                
+                if save_plots:
+                    save_path = os.path.join(output_dir, f"{base_name}_{name_suffix}_gradcam.png")
+                    visualize_saliency(heatmap, input_spectrogram=vis_input, save_path=save_path)
+                    print(f"     ✓ Saved: {save_path}")
+                
+                if show_plots:
+                    print(f"     Displaying {name_suffix}...")
+                    visualize_saliency(heatmap, input_spectrogram=vis_input, save_path=None)
+            else:
+                all_heatmaps.append(None)
+
+        # 2. Composite Visualizations
+        print("\n  -- Generating Composite Visualizations --")
+        
+        valid_heatmaps = [h for h in all_heatmaps if h is not None]
+        if not valid_heatmaps:
+            print("  No valid heatmaps generated.")
+            return
+
         vis_input = spectrogram_vis if spectrogram_vis is not None else input_tensor.detach().cpu().numpy()
+
+        # A. Simple Average
+        avg_heatmap = torch.stack(valid_heatmaps).mean(dim=0)
         
         if save_plots:
-            save_path = os.path.join(output_dir, f"{base_name}_gradcam.png")
-            visualize_saliency(heatmap, input_spectrogram=vis_input, save_path=save_path)
-            print(f"  ✓ Saved: {save_path}")
-        
+            save_path = os.path.join(output_dir, f"{base_name}_ensemble_average_gradcam.png")
+            visualize_saliency(avg_heatmap, input_spectrogram=vis_input, save_path=save_path)
+            print(f"  ✓ Saved Average: {save_path}")
+            
         if show_plots:
-            visualize_saliency(heatmap, input_spectrogram=vis_input, save_path=None)
+            visualize_saliency(avg_heatmap, input_spectrogram=vis_input, save_path=None)
+
+        # B. Weighted Fusion (by confidence)
+        # Filter confidences to match valid heatmaps
+        valid_indices = [i for i, h in enumerate(all_heatmaps) if h is not None]
+        valid_confidences = [all_confidences[i] for i in valid_indices]
+        
+        if sum(valid_confidences) > 0:
+            weights = torch.tensor(valid_confidences, device=avg_heatmap.device)
+            weights = weights / weights.sum() # Normalize
+            
+            weighted_heatmap = torch.zeros_like(avg_heatmap)
+            for i, h in enumerate(valid_heatmaps):
+                weighted_heatmap += h * weights[i]
+                
+            if save_plots:
+                save_path = os.path.join(output_dir, f"{base_name}_ensemble_weighted_gradcam.png")
+                visualize_saliency(weighted_heatmap, input_spectrogram=vis_input, save_path=save_path)
+                print(f"  ✓ Saved Weighted: {save_path}")
+                
+            if show_plots:
+                visualize_saliency(weighted_heatmap, input_spectrogram=vis_input, save_path=None)
+        else:
+            print("  Skipping weighted fusion (sum of confidences is 0)")
+
+    else:
+        # Single Model (Original Logic)
+        target_layer = find_gradcam_target_layer(model)
+        
+        if target_layer is None:
+            print("  ⚠ Could not find suitable convolutional layer - skipping")
+            return
+            
+        print(f"  Using target layer: {target_layer}")
+        
+        gradcam = GradCAM(model, target_layer, device)
+        heatmap = gradcam.compute(input_tensor, target_class=target_class)
+        
+        if heatmap is not None:
+            # Resize heatmap to match input size
+            if heatmap.ndim == 2:  # 2D Spectrogram
+                h = heatmap.unsqueeze(0).unsqueeze(0)
+                target_h, target_w = input_tensor.shape[2], input_tensor.shape[3]
+                h = torch.nn.functional.interpolate(h, size=(target_h, target_w), mode='bilinear', align_corners=False)
+                heatmap = h.squeeze()
+            elif heatmap.ndim == 1:  # 1D Raw
+                h = heatmap.unsqueeze(0).unsqueeze(0)
+                target_l = input_tensor.shape[2]
+                h = torch.nn.functional.interpolate(h, size=(target_l,), mode='linear', align_corners=False)
+                heatmap = h.squeeze()
+        
+            vis_input = spectrogram_vis if spectrogram_vis is not None else input_tensor.detach().cpu().numpy()
+            
+            if save_plots:
+                save_path = os.path.join(output_dir, f"{base_name}_gradcam.png")
+                visualize_saliency(heatmap, input_spectrogram=vis_input, save_path=save_path)
+                print(f"  ✓ Saved: {save_path}")
+            
+            if show_plots:
+                visualize_saliency(heatmap, input_spectrogram=vis_input, save_path=None)
 
 def main():
     parser = argparse.ArgumentParser(
