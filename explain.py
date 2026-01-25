@@ -244,6 +244,22 @@ def find_gradcam_target_layer(model):
     target_layer = None
     
     try:
+        # Special handling for EnsembleModel
+        if hasattr(model, 'is_ensemble') and model.is_ensemble:
+            print("  Ensemble detected, searching for best sub-model target...")
+            # Prefer EfficientNet sub-model if available
+            effnet_model = None
+            for m in model.models:
+                if "EfficientNet" in m.__class__.__name__ or (hasattr(m, 'backbone') and "EfficientNet" in m.backbone.__class__.__name__):
+                    effnet_model = m
+                    break
+            
+            # If no EfficientNet found, use the last model
+            search_model = effnet_model if effnet_model is not None else model.models[-1]
+            print(f"  Using sub-model: {search_model.__class__.__name__}")
+            # Recursively find target in the chosen sub-model
+            return find_gradcam_target_layer(search_model)
+
         if hasattr(model, 'backbone'):
             # EfficientNet style
             if hasattr(model.backbone, 'features'):
@@ -439,6 +455,13 @@ Examples:
         config_json = json.load(f)
     default_model_path = config_json.get("model_path")
     model_path = args.model_path if args.model_path is not None else default_model_path
+    
+    # Set seed for reproducibility (crucial for random projections in ensemble)
+    torch.manual_seed(1234)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(1234)
+    np.random.seed(1234)
+    
     model, config = load_model(args.config, model_path, device)
     
     # Prepare input
@@ -453,7 +476,11 @@ Examples:
     # Create output directory
     if not args.no_save:
         os.makedirs(args.output_dir, exist_ok=True)
-    base_name = Path(args.audio_file).stem
+    
+    # Extract config name and include it in output filename
+    config_name = Path(args.config).stem  # e.g., "ensemble" from "config/ensemble.conf"
+    audio_name = Path(args.audio_file).stem
+    base_name = f"{config_name}_{audio_name}"
     
     # Determine which methods to run
     if args.method is None or "all" in args.method:
