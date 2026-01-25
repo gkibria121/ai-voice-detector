@@ -1,11 +1,103 @@
-## System Architecture Overview
+## System Architecture Overview 
 
-![Overview](images/overview.png)
+```mermaid
+graph TD
+    %% System Architecture Diagram
+    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
 
+    subgraph "Data Pipeline"
+        Input[Raw Audio Input]:::storage --> Load[Load & Decode]:::process
+        Load --> Norm["Preprocess\n16kHz | Mono | 64k Samples"]:::process
+        Norm --> Split{Phase?}:::decision
+        
+        Split -- Training --> Aug["Data Augmentation\nNoise, RIR, Pitch, SpecAug"]:::process
+        Split -- Inference --> Clean[Identity / Center Crop]:::process
+        
+        Aug --> Feat[Feature Extraction]:::process
+        Clean --> Feat
+    end
+
+    subgraph "Feature Space"
+        Feat --> Mel[Log-Mel Spectrogram]:::storage
+        Feat --> LFCC[LFCC]:::storage
+        Feat --> CQT[CQT]:::storage
+        Feat --> Raw[Raw Waveform]:::storage
+    end
+
+    subgraph "Model Backbone"
+        Mel --> CNN[EfficientNet / ResNet / LCNN]:::process
+        LFCC --> CNN
+        CQT --> CNN
+        Raw --> RawNet[RawNet3 / SimpleCNN]:::process
+    end
+
+    subgraph "Decision Module"
+        CNN --> Emb[Embeddings]:::storage
+        RawNet --> Emb
+        Emb --> Head[Classification Head]:::process
+        Head --> Logits[Logits]:::storage
+        Logits --> Softmax[Softmax Score]:::process
+    end
+
+    Softmax --> Output[Final Prediction]:::decision
+```
+
+
+
+## Training & Validation Lifecycle
+
+```mermaid
+stateDiagram-v2
+    %% Training Loop Diagram derived from main.py
+    [*] --> Init: Load Config & Reproducibility
+    Init --> EpochLoop: Start Training Loop
+    
+    state EpochLoop {
+        [*] --> Train: "Train Epoch\n(AMP Mixed Precision)"
+        Train --> Validate: "Validate Epoch\n(Dev Set)"
+        Validate --> CheckBest: Compute Dev EER
+        
+        state CheckBest {
+            [*] --> IsBest
+            IsBest --> SaveBest: New Best Model
+            IsBest --> UpdateTracker: No Improvement
+            SaveBest --> EvalTest: If --eval_best
+            EvalTest --> UpdateTracker
+        }
+        
+        UpdateTracker --> SWA_Update: Update SWA Weights
+        SWA_Update --> Train: Next Epoch
+    }
+    
+    EpochLoop --> Finalize: Max Epochs Reached
+    Finalize --> ProcessSWA: Apply SWA & Update BN
+    ProcessSWA --> FinalEval: "Final Evaluation\n(Test Set)"
+    FinalEval --> Metrics: Save Metrics & Visualizations
+    Metrics --> [*]
+```
 ## Inference Pipeline
 
-![Overview](images/inference.png)
-
+```mermaid
+flowchart LR
+    %% Inference Pipeline Flowchart
+    Input(Audio File) --> Prep["Preprocess\nResample & Pad"]
+    Prep --> Feat[Extract Features]
+    Feat --> Model[Model Forward Pass]
+    Model --> Logits(Logits)
+    Logits --> Soft{"Softmax\n> Threshold?"}
+    
+    Soft -- Yes --> Real[Bonafide]
+    Soft -- No --> Fake[Spoof]
+    
+    Model -.-> XAI["XAI Analysis\nGradCAM / Attention"]
+    XAI -.-> Vis[Heatmap Visualization]
+    
+    style Input fill:#e1f5fe
+    style Real fill:#c8e6c9
+    style Fake fill:#ffcdd2
+```
 ## 1. Data Preparation and Preprocessing
 
 ### 1.1 Dataset Description
@@ -778,11 +870,11 @@ graph TD
         Embed1 --> Proj1[Learnable Projection]
         Embed2 --> Proj2[Learnable Projection]
         Embed3 --> Proj3[Learnable Projection]
-        
+
         Proj1 --> FusedEmbed[Feature Aggregation]
         Proj2 --> FusedEmbed
         Proj3 --> FusedEmbed
-        
+
         Embed1 --> SoftVote[Soft Voting / Logit Averaging]
         Embed2 --> SoftVote
         Embed3 --> SoftVote
