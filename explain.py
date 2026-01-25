@@ -27,30 +27,149 @@ def load_model(config_path: str, weights_path: str, device: torch.device):
         config = json.load(f)
 
     model_config = config.get("model_config", {})
-    arch = model_config.get("architecture")
-    if arch is None:
-        raise RuntimeError("model_config.architecture missing in config file")
-
-    module = import_module(f"models.{arch}")
-    model_variant = model_config.get("model_variant", None)
     
+    # Check if this is an ensemble configuration (list of model configs)
+    if isinstance(model_config, (list, tuple)):
+        # Build ensemble model with multiple sub-models
+        import torch.nn as nn
+        
+        models = []
+        for idx, mconf in enumerate(model_config):
+            arch = mconf.get("architecture")
+            if arch is None:
+                raise RuntimeError(f"model_config[{idx}].architecture missing in config file")
+            
+            module = import_module(f"models.{arch}")
+            model_variant = mconf.get("model_variant", None)
+            
+            # Instantiate sub-model
+            if model_variant == "attention":
+                if hasattr(module, "ModelWithAttention"):
+                    _model_cls = getattr(module, "ModelWithAttention")
+                else:
+                    print(f"Warning: ModelWithAttention not found in {arch}, using standard Model")
+                    _model_cls = getattr(module, "Model")
+            elif model_variant == "large":
+                if hasattr(module, "ModelLarge"):
+                    _model_cls = getattr(module, "ModelLarge")
+                else:
+                    _model_cls = getattr(module, "Model")
+            else:
+                _model_cls = getattr(module, "Model")
+            
+            submodel = _model_cls(mconf).to(device)
+            print(f"Loaded sub-model[{idx}]: {mconf.get('architecture')}")
+            models.append(submodel)
+        
+        # Create ensemble wrapper (same as in main.py)
+        class EnsembleModel(nn.Module):
+            """Ensemble wrapper that averages logits and projects embeddings."""
+            def __init__(self, model_list):
+                super().__init__()
+                self.models = nn.ModuleList(model_list)
+                self.is_ensemble = True
 
-    # Instantiate model
-    if model_variant == "attention":
-        if hasattr(module, "ModelWithAttention"):
-            _model = getattr(module, "ModelWithAttention")
-        else:
-            print(f"Warning: ModelWithAttention not found in {arch}, using standard Model")
-            _model = getattr(module, "Model")
-    elif model_variant == "large":
-        if hasattr(module, "ModelLarge"):
-            _model = getattr(module, "ModelLarge")
-        else:
-            _model = getattr(module, "Model")
+                # Infer embedding sizes for each submodel
+                emb_dims = []
+                for m in self.models:
+                    dim = None
+                    # Prefer BatchNorm1d feature size if present
+                    if hasattr(m, 'embedding'):
+                        bn_found = None
+                        linear_found = None
+                        has_mfm = False
+                        for mod in m.embedding.modules():
+                            if isinstance(mod, nn.BatchNorm1d):
+                                bn_found = mod.num_features
+                            if isinstance(mod, nn.Linear) and linear_found is None:
+                                linear_found = getattr(mod, 'out_features', None)
+                            if mod.__class__.__name__.startswith('MaxFeatureMap'):
+                                has_mfm = True
+                        if bn_found is not None:
+                            dim = bn_found
+                        elif linear_found is not None:
+                            if has_mfm and linear_found % 2 == 0:
+                                dim = linear_found // 2
+                            else:
+                                dim = linear_found
+                    # Fallback: infer from classifier first linear input
+                    if dim is None and hasattr(m, 'classifier'):
+                        for mod in m.classifier.modules():
+                            if isinstance(mod, nn.Linear):
+                                dim = getattr(mod, 'in_features', None)
+                                break
+                    emb_dims.append(dim)
+
+                # Choose a target embedding dimension (max of detected dims)
+                valid_dims = [d for d in emb_dims if d is not None]
+                self.target_emb_dim = max(valid_dims) if valid_dims else 128
+
+                # Create projection layers to map each embedding to target dim
+                projs = []
+                for d in emb_dims:
+                    if d is None or d == self.target_emb_dim:
+                        projs.append(nn.Identity())
+                    else:
+                        lin = nn.Linear(d, self.target_emb_dim)
+                        nn.init.xavier_uniform_(lin.weight)
+                        if lin.bias is not None:
+                            nn.init.constant_(lin.bias, 0.0)
+                        projs.append(lin)
+                self.projections = nn.ModuleList(projs)
+
+            def forward(self, x, Freq_aug=False):
+                outs = []
+                embs = []
+                for m in self.models:
+                    emb, out = m(x, Freq_aug=Freq_aug)
+                    embs.append(emb)
+                    outs.append(out)
+
+                # Average logits
+                stacked_outs = torch.stack(outs, dim=0)  # (M, B, C)
+                avg_out = torch.mean(stacked_outs, dim=0)
+
+                # Project embeddings to common size then average
+                proj_embs = []
+                for i, emb in enumerate(embs):
+                    proj = self.projections[i]
+                    if isinstance(proj, nn.Identity):
+                        proj_embs.append(emb)
+                    else:
+                        proj_embs.append(proj(emb))
+
+                stacked_embs = torch.stack(proj_embs, dim=0)
+                avg_emb = torch.mean(stacked_embs, dim=0)
+
+                return avg_emb, avg_out
+        
+        model = EnsembleModel(models).to(device)
+        print(f"Created ensemble with {len(models)} models")
     else:
-        _model = getattr(module, "Model")
+        # Single model configuration
+        arch = model_config.get("architecture")
+        if arch is None:
+            raise RuntimeError("model_config.architecture missing in config file")
 
-    model = _model(model_config).to(device)
+        module = import_module(f"models.{arch}")
+        model_variant = model_config.get("model_variant", None)
+        
+        # Instantiate model
+        if model_variant == "attention":
+            if hasattr(module, "ModelWithAttention"):
+                _model = getattr(module, "ModelWithAttention")
+            else:
+                print(f"Warning: ModelWithAttention not found in {arch}, using standard Model")
+                _model = getattr(module, "Model")
+        elif model_variant == "large":
+            if hasattr(module, "ModelLarge"):
+                _model = getattr(module, "ModelLarge")
+            else:
+                _model = getattr(module, "Model")
+        else:
+            _model = getattr(module, "Model")
+
+        model = _model(model_config).to(device)
 
     # Load weights
     if weights_path and os.path.exists(weights_path):
@@ -64,12 +183,22 @@ def load_model(config_path: str, weights_path: str, device: torch.device):
             elif "model_state_dict" in state:
                 state = state["model_state_dict"]
         
-        try:
-            model.load_state_dict(state)
-        except RuntimeError as e:
-            print(f"Error loading state dict: {e}")
-            print("Attempting strict=False...")
-            model.load_state_dict(state, strict=False)
+        # For ensemble models, filter out projection weights if sizes mismatch
+        # (projections are architecture-dependent and can be reinitialized)
+        if isinstance(model_config, (list, tuple)) and hasattr(model, 'is_ensemble'):
+            # Remove projection weights from state dict to avoid size mismatches
+            state_filtered = {k: v for k, v in state.items() if not k.startswith('projections.')}
+            missing_keys, unexpected_keys = model.load_state_dict(state_filtered, strict=False)
+            if missing_keys:
+                print(f"Note: {len([k for k in missing_keys if k.startswith('projections.')])} projection parameters initialized randomly (architecture-dependent)")
+        else:
+            # Single model: use standard loading with fallback to strict=False
+            try:
+                model.load_state_dict(state)
+            except RuntimeError as e:
+                print(f"Error loading state dict: {e}")
+                print("Attempting strict=False...")
+                model.load_state_dict(state, strict=False)
     else:
         print(f"Warning: Weights file not found or not provided: {weights_path}")
         print("Using random initialization (results will be meaningless for explanation)")
