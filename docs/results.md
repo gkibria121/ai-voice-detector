@@ -1,630 +1,596 @@
-# AI Voice Detection Experiment Results
+# AI Voice Detection Experiment Results - Evaluation Set
 
-This document presents the experimental results for audio deepfake detection using various model architectures and feature extraction methods on the FakeorReal V3 dataset.
-
----
-
-## Experimental Setup
-
-- **Dataset**: FakeorReal V3
-- **Training Epochs**: 20
-- **Data Augmentation**: Random noise, Pitch shift, Time stretch etc
-- **Weight Averaging**: SWA (Stochastic Weight Averaging)
-- **Evaluation**: Best development model
+This document presents the **Evaluation** set results for various deep learning models trained to distinguish between fake (AI-generated) and real human speech on the FakeOrReal V3 dataset.
 
 ---
 
-## Model Experiments
+## EfficientNet-B2 with Attention
 
-### EfficientNet-B2 with Attention
+### Feature Type 1 (Mel Spectrogram)
 
-#### Mel Spectrogram
+#### Evaluation Set Metrics
 
-| **Development Set** | Accuracy: 99.96% | ROC AUC: 1.0000 | EER: 0.07% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 97.70% | ROC AUC: 0.9978 | EER: 2.39% |
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 97.70% |
+| ROC AUC  | 0.9978 |
+| EER      | 2.39%  |
 
-<table>
-<tr>
-<!-- <td><img src="images/results_1_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_1_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_1_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_1_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_1_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.9779    | 0.9761 | 0.9770   |
+| Real/Bonafide | 0.9761    | 0.9779 | 0.9770   |
 
-**Final Results: EER: 1.103%, Accuracy: 97.70%**
-
----
-
-#### LFCC
-
-| **Development Set** | Accuracy: 99.47% | ROC AUC: 0.9999 | EER: 0.42%  |
-| ------------------- | ---------------- | --------------- | ----------- |
-| **Evaluation Set**  | Accuracy: 76.75% | ROC AUC: 0.8357 | EER: 23.35% |
-
-<table>
-<tr>
-<!-- <td><img src="images/results_2_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_2_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_2_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_2_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_2_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
-
-**Final Results: EER: 23.346%, Accuracy: 76.75%**
+<p float="left" align="center">
+  <img src="images/results_1_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_1_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_1_13.png" width="95%" title="Accuracy Comparison" />
+</p>
 
 ---
 
-#### CQT
+### Feature Type 2 (MFCC)
 
-| **Development Set** | Accuracy: 99.82% | ROC AUC: 1.0000 | EER: 0.14% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 96.05% | ROC AUC: 0.9905 | EER: 3.68% |
+#### Evaluation Set Metrics
 
-<table>
-<tr>
-<!-- <td><img src="images/results_3_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_3_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_3_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_3_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_3_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 76.75% |
+| ROC AUC  | 0.8357 |
+| EER      | 23.35% |
 
-**Final Results: EER: 3.493%, Accuracy: 96.05%**
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.7680    | 0.7665 | 0.7672   |
+| Real/Bonafide | 0.7670    | 0.7684 | 0.7677   |
 
----
-
-### EfficientNet-B2
-
-#### Mel Spectrogram
-
-| **Development Set** | Accuracy: 99.96% | ROC AUC: 1.0000 | EER: 0.07% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 96.97% | ROC AUC: 0.9944 | EER: 3.12% |
-
-<table>
-<tr>
-<!-- <td><img src="images/results_5_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_5_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_5_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_5_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_5_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
-
-**Final Results: EER: 2.757%, Accuracy: 96.97%**
+<p float="left" align="center">
+  <img src="images/results_2_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_2_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_2_13.png" width="95%" title="Accuracy Comparison" />
+</p>
 
 ---
 
-#### LFCC
+### Feature Type 4 (CQT)
 
-| **Development Set** | Accuracy: 99.40% | ROC AUC: 0.9998 | EER: 0.35%  |
-| ------------------- | ---------------- | --------------- | ----------- |
-| **Evaluation Set**  | Accuracy: 72.52% | ROC AUC: 0.8100 | EER: 27.57% |
+#### Evaluation Set Metrics
 
-<table>
-<tr>
-<!-- <td><img src="images/results_6_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_6_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_6_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_6_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_6_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 96.05% |
+| ROC AUC  | 0.9905 |
+| EER      | 3.68%  |
 
-**Final Results: EER: 24.632%, Accuracy: 72.52%**
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.9613    | 0.9596 | 0.9604   |
+| Real/Bonafide | 0.9596    | 0.9614 | 0.9605   |
 
----
-
-#### CQT
-
-| **Development Set** | Accuracy: 99.68% | ROC AUC: 1.0000 | EER: 0.35% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 96.78% | ROC AUC: 0.9928 | EER: 3.31% |
-
-<table>
-<tr>
-<!-- <td><img src="images/results_7_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_7_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_7_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_7_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_7_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
-
-**Final Results: EER: 2.757%, Accuracy: 96.78%**
+<p float="left" align="center">
+  <img src="images/results_3_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_3_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_3_13.png" width="95%" title="Accuracy Comparison" />
+</p>
 
 ---
 
-### LCNN Large
+## EfficientNet-B2 (Without Attention)
 
-#### Mel Spectrogram
+### Feature Type 1 (Mel Spectrogram)
 
-| **Development Set** | Accuracy: 99.75% | ROC AUC: 0.9999 | EER: 0.28% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 91.82% | ROC AUC: 0.9771 | EER: 8.27% |
+#### Evaluation Set Metrics
 
-<table>
-<tr>
-<!-- <td><img src="images/results_9_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_9_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_9_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_9_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_9_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 96.97% |
+| ROC AUC  | 0.9944 |
+| EER      | 3.12%  |
 
-**Final Results: EER: 8.088%, Accuracy: 91.82%**
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.9705    | 0.9688 | 0.9696   |
+| Real/Bonafide | 0.9688    | 0.9706 | 0.9697   |
 
----
-
-#### LFCC
-
-| **Development Set** | Accuracy: 99.40% | ROC AUC: 0.9999 | EER: 0.64% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 94.94% | ROC AUC: 0.9890 | EER: 5.15% |
-
-<table>
-<tr>
-<!-- <td><img src="images/results_10_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_10_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_10_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_10_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_10_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
-
-**Final Results: EER: 2.757%, Accuracy: 94.94%**
+<p float="left" align="center">
+  <img src="images/results_5_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_5_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_5_13.png" width="95%" title="Accuracy Comparison" />
+</p>
 
 ---
 
-#### CQT
+### Feature Type 2 (MFCC)
 
-| **Development Set** | Accuracy: 99.47% | ROC AUC: 0.9996 | EER: 0.21% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 95.50% | ROC AUC: 0.9907 | EER: 3.86% |
+#### Evaluation Set Metrics
 
-<table>
-<tr>
-<!-- <td><img src="images/results_11_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_11_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_11_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_11_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_11_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 72.52% |
+| ROC AUC  | 0.8100 |
+| EER      | 27.57% |
 
-**Final Results: EER: 3.676%, Accuracy: 95.50%**
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.7256    | 0.7243 | 0.7249   |
+| Real/Bonafide | 0.7248    | 0.7261 | 0.7254   |
 
----
-
-### LCNN
-
-#### Mel Spectrogram
-
-| **Development Set** | Accuracy: 99.82% | ROC AUC: 1.0000 | EER: 0.14% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 95.31% | ROC AUC: 0.9913 | EER: 4.78% |
-
-<table>
-<tr>
-<!-- <td><img src="images/results_13_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_13_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_13_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_13_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_13_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
-
-**Final Results: EER: 4.779%, Accuracy: 95.31%**
+<p float="left" align="center">
+  <img src="images/results_6_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_6_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_6_13.png" width="95%" title="Accuracy Comparison" />
+</p>
 
 ---
 
-#### LFCC
+### Feature Type 4 (CQT)
 
-| **Development Set** | Accuracy: 99.26% | ROC AUC: 0.9997 | EER: 0.78% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 91.08% | ROC AUC: 0.9653 | EER: 8.82% |
+#### Evaluation Set Metrics
 
-<table>
-<tr>
-<!-- <td><img src="images/results_14_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_14_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_14_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_14_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_14_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 96.78% |
+| ROC AUC  | 0.9928 |
+| EER      | 3.31%  |
 
-**Final Results: EER: 5.331%, Accuracy: 91.08%**
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.9687    | 0.9669 | 0.9678   |
+| Real/Bonafide | 0.9670    | 0.9688 | 0.9679   |
 
----
-
-#### CQT
-
-| **Development Set** | Accuracy: 99.47% | ROC AUC: 0.9996 | EER: 0.35% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 95.50% | ROC AUC: 0.9903 | EER: 4.78% |
-
-<table>
-<tr>
-<!-- <td><img src="images/results_15_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_15_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_15_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_15_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_15_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
-
-**Final Results: EER: 4.228%, Accuracy: 95.50%**
+<p float="left" align="center">
+  <img src="images/results_7_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_7_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_7_13.png" width="95%" title="Accuracy Comparison" />
+</p>
 
 ---
 
-### SEResNet
+## LCNN Large
 
-#### Mel Spectrogram
+### Feature Type 1 (Mel Spectrogram)
 
-| **Development Set** | Accuracy: 99.89% | ROC AUC: 1.0000 | EER: 0.07%  |
-| ------------------- | ---------------- | --------------- | ----------- |
-| **Evaluation Set**  | Accuracy: 89.43% | ROC AUC: 0.9674 | EER: 10.66% |
+#### Evaluation Set Metrics
 
-<table>
-<tr>
-<!-- <td><img src="images/results_17_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_17_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_17_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_17_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_17_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 91.82% |
+| ROC AUC  | 0.9771 |
+| EER      | 8.27%  |
 
-**Final Results: EER: 8.456%, Accuracy: 89.43%**
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.9190    | 0.9173 | 0.9181   |
+| Real/Bonafide | 0.9174    | 0.9191 | 0.9183   |
 
----
-
-#### LFCC
-
-| **Development Set** | Accuracy: 99.61% | ROC AUC: 0.9999 | EER: 0.35% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 92.00% | ROC AUC: 0.9750 | EER: 8.09% |
-
-<table>
-<tr>
-<!-- <td><img src="images/results_18_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_18_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_18_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_18_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_18_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
-
-**Final Results: EER: 3.860%, Accuracy: 92.00%**
+<p float="left" align="center">
+  <img src="images/results_9_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_9_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_9_13.png" width="95%" title="Accuracy Comparison" />
+</p>
 
 ---
 
-#### CQT
+### Feature Type 2 (MFCC)
 
-| **Development Set** | Accuracy: 99.54% | ROC AUC: 0.9997 | EER: 0.50% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 96.05% | ROC AUC: 0.9908 | EER: 3.86% |
+#### Evaluation Set Metrics
 
-<table>
-<tr>
-<!-- <td><img src="images/results_19_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_19_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_19_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_19_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_19_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 84.01% |
+| ROC AUC  | 0.9244 |
+| EER      | 15.99% |
 
-**Final Results: EER: 3.860%, Accuracy: 96.05%**
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.8401    | 0.8382 | 0.8391   |
+| Real/Bonafide | 0.8384    | 0.8401 | 0.8392   |
 
----
-
-## Ensemble Model
-
-| **Development Set** | Accuracy: 99.89% | ROC AUC: 1.0000 | EER: 0.00% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 96.05% | ROC AUC: 0.9944 | EER: 4.04% |
-
-<table>
-<tr>
-<!-- <td><img src="images/results_21_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_21_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_21_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_21_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_21_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
-
-**Final Results: EER: 1.838%, Accuracy: 96.05%**
+<p float="left" align="center">
+  <img src="images/results_10_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_10_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_10_13.png" width="95%" title="Accuracy Comparison" />
+</p>
 
 ---
 
-## Feature Fusion Experiments
+### Feature Type 4 (CQT)
 
-### EfficientNet-B2 with Attention (Fusion 1,2,4)
+#### Evaluation Set Metrics
 
-| **Development Set** | Accuracy: 99.82% | ROC AUC: 1.0000 | EER: 0.07% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 94.58% | ROC AUC: 0.9911 | EER: 5.33% |
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 94.12% |
+| ROC AUC  | 0.9867 |
+| EER      | 5.88%  |
 
-<table>
-<tr>
-<!-- <td><img src="images/results_23_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_23_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_23_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_23_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_23_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.9412    | 0.9393 | 0.9402   |
+| Real/Bonafide | 0.9394    | 0.9412 | 0.9403   |
 
-**Final Results: EER: 3.309%, Accuracy: 94.58%**
-
----
-
-### EfficientNet-B2 (Fusion 1,2,4)
-
-| **Development Set** | Accuracy: 99.82% | ROC AUC: 1.0000 | EER: 0.07% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 94.03% | ROC AUC: 0.9864 | EER: 5.88% |
-
-<table>
-<tr>
-<!-- <td><img src="images/results_24_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_24_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_24_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_24_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_24_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
-
-**Final Results: EER: 4.779%, Accuracy: 94.03%**
+<p float="left" align="center">
+  <img src="images/results_11_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_11_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_11_13.png" width="95%" title="Accuracy Comparison" />
+</p>
 
 ---
 
-### SEResNet (Fusion 1,2,4)
+## LCNN
 
-| **Development Set** | Accuracy: 99.68% | ROC AUC: 0.9999 | EER: 0.28% |
-| ------------------- | ---------------- | --------------- | ---------- |
-| **Evaluation Set**  | Accuracy: 92.74% | ROC AUC: 0.9821 | EER: 6.25% |
+### Feature Type 1 (Mel Spectrogram)
 
-<table>
-<tr>
-<!-- <td><img src="images/results_25_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_25_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_25_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_25_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_25_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
+#### Evaluation Set Metrics
 
-**Final Results: EER: 3.309%, Accuracy: 92.74%**
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 92.56% |
+| ROC AUC  | 0.9791 |
+| EER      | 7.44%  |
 
----
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.9256    | 0.9239 | 0.9247   |
+| Real/Bonafide | 0.9240    | 0.9257 | 0.9248   |
 
-## Research Contributions & New Features
-
-### New Feature Types (5 & 6)
-
-#### Chroma Features
-
-| **Development Set** | Accuracy: 93.38% | ROC AUC: 0.9838 | EER: 6.65%  |
-| ------------------- | ---------------- | --------------- | ----------- |
-| **Evaluation Set**  | Accuracy: 81.89% | ROC AUC: 0.8956 | EER: 18.20% |
-
-<table>
-<tr>
-<!-- <td><img src="images/results_29_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_29_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_29_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_29_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_29_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
-
-**Final Results: EER: 14.338%, Accuracy: 81.89%**
+<p float="left" align="center">
+  <img src="images/results_13_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_13_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_13_13.png" width="95%" title="Accuracy Comparison" />
+</p>
 
 ---
 
-#### Spectral Contrast
+### Feature Type 2 (MFCC)
 
-| **Development Set** | Accuracy: 96.57% | ROC AUC: 0.9931 | EER: 3.47%  |
-| ------------------- | ---------------- | --------------- | ----------- |
-| **Evaluation Set**  | Accuracy: 62.96% | ROC AUC: 0.6773 | EER: 37.13% |
+#### Evaluation Set Metrics
 
-<table>
-<tr>
-<!-- <td><img src="images/results_30_3.png" alt="Confusion Matrix Dev" width="400"/></td>
-<td><img src="images/results_30_5.png" alt="ROC Curve Dev" width="400"/></td> -->
-<td><img src="images/results_30_9.png" alt="Confusion Matrix Eval" width="400"/></td>
-<td><img src="images/results_30_11.png" alt="ROC Curve Eval" width="400"/></td>
-</tr>
-<tr>
-<td colspan="2" style="text-align:center;"><img src="images/results_30_13.png" alt="Accuracy Comparison" width="800"/></td>
-</tr>
-</table>
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 91.08% |
+| ROC AUC  | 0.9653 |
+| EER      | 8.82%  |
 
-**Final Results: EER: 30.882%, Accuracy: 62.96%**
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.9116    | 0.9099 | 0.9108   |
+| Real/Bonafide | 0.9101    | 0.9118 | 0.9109   |
 
----
-
-## Experiment Summary Table
-
-| #   | Model                             | Feature               | Epochs | Best EER (%) | Best Accuracy (%) |
-| --- | --------------------------------- | --------------------- | ------ | ------------ | ----------------- |
-| 1   | LCNN                              | Mel (1)               | 20     | 4.779        | 95.31             |
-| 2   | LCNN                              | LFCC (2)              | 20     | 5.331        | 91.08             |
-| 3   | LCNN                              | CQT (4)               | 20     | 4.228        | 95.50             |
-| 4   | LCNN Large                        | Mel (1)               | 20     | 8.088        | 91.82             |
-| 5   | LCNN Large                        | LFCC (2)              | 20     | 2.757        | 94.94             |
-| 6   | LCNN Large                        | CQT (4)               | 20     | 3.676        | 95.50             |
-| 7   | EfficientNet-B2                   | Mel (1)               | 20     | 2.757        | 96.97             |
-| 8   | EfficientNet-B2                   | LFCC (2)              | 20     | 24.632       | 72.52             |
-| 9   | EfficientNet-B2                   | CQT (4)               | 20     | 2.757        | 96.78             |
-| 10  | EfficientNet-B2                   | Fusion (1,2,4)        | 20     | 4.779        | 94.03             |
-| 11  | EfficientNet-B2_Attention         | Mel (1)               | 20     | 1.103        | 97.70             |
-| 12  | EfficientNet-B2_Attention         | LFCC (2)              | 20     | 23.346       | 76.75             |
-| 13  | EfficientNet-B2_Attention         | CQT (4)               | 20     | 3.493        | 96.05             |
-| 14  | EfficientNet-B2_Attention         | Fusion (1,2,4)        | 20     | 3.309        | 94.58             |
-| 15  | SEResNet                          | Mel (1)               | 20     | 8.456        | 89.43             |
-| 16  | SEResNet                          | LFCC (2)              | 20     | 3.860        | 92.00             |
-| 17  | SEResNet                          | CQT (4)               | 20     | 3.860        | 96.05             |
-| 18  | SEResNet                          | Fusion (1,2,4)        | 20     | 3.309        | 92.74             |
-| 19  | Ensemble (EffNetB2+SEResNet+LCNN) | Mel (1)               | 20     | 1.838        | 96.05             |
-| 20  | EfficientNet-B2_Attention         | Chroma (5)            | 20     | 14.338       | 81.89             |
-| 21  | EfficientNet-B2_Attention         | Spectral Contrast (6) | 20     | 30.882       | 62.96             |
+<p float="left" align="center">
+  <img src="images/results_14_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_14_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_14_13.png" width="95%" title="Accuracy Comparison" />
+</p>
 
 ---
 
-## Key Observations
+### Feature Type 4 (CQT)
 
-1. **Best Performing Model**: EfficientNet-B2 with Attention using Mel Spectrogram features achieved the lowest EER (1.103%) and highest accuracy (97.70%)
+#### Evaluation Set Metrics
 
-2. **Feature Performance**:
-   - Mel Spectrogram (Type 1) consistently performs well across models
-   - LFCC (Type 2) shows significant generalization issues on the evaluation set
-   - CQT (Type 4) provides stable results across different architectures
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 95.50% |
+| ROC AUC  | 0.9903 |
+| EER      | 4.78%  |
 
-3. **Ensemble Benefits**: The ensemble model (EfficientNet-B2 + SEResNet + LCNN) achieved competitive results with EER of 1.838%
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.9558    | 0.9540 | 0.9549   |
+| Real/Bonafide | 0.9541    | 0.9559 | 0.9550   |
 
-4. **New Features Performance**:
-   - Chroma features (Type 5): Moderate performance with 81.89% accuracy
-   - Spectral Contrast (Type 6): Poor generalization with 62.96% accuracy
-
-**Feature Flags Reference:**
-
-- `0` = Raw waveform
-- `1` = Mel Spectrogram
-- `2` = LFCC
-- `3` = MFCC
-- `4` = CQT
-- `5` = Chroma
-- `6` = Spectral Contrast
-- `1,2,4` = Feature Fusion
-
-**Metrics:**
-
-- Lower EER is better (0% = perfect)
-- Higher Accuracy is better (100% = perfect)
+<p float="left" align="center">
+  <img src="images/results_15_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_15_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_15_13.png" width="95%" title="Accuracy Comparison" />
+</p>
 
 ---
 
-## Statistical Analysis & Visualizations
+## SEResNet
 
-### Model Performance Comparison
+### Feature Type 1 (Mel Spectrogram)
 
-![Model Comparison](images/model_comparison_bar.png)
-![Feature Comparison Heatmap](images/feature_comparison_heatmap.png)
+#### Evaluation Set Metrics
 
-**Average Performance by Model (on Mel/LFCC/CQT features):**
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 89.43% |
+| ROC AUC  | 0.9674 |
+| EER      | 10.66% |
 
-| Model                    | Avg Eval Accuracy | Std   | Avg EER | Std   |
-| ------------------------ | ----------------- | ----- | ------- | ----- |
-| Ensemble                 | 96.05%            | -     | 1.84%   | -     |
-| LCNN                     | 93.96%            | 2.50  | 4.78%   | 0.55  |
-| LCNN_Large               | 94.09%            | 1.98  | 4.84%   | 2.85  |
-| EfficientNetB2_Attention | 90.17%            | 11.65 | 9.31%   | 12.21 |
-| EfficientNetB2           | 88.76%            | 14.06 | 10.05%  | 12.63 |
-| SEResNet                 | 92.49%            | 3.34  | 5.39%   | 2.65  |
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.8950    | 0.8934 | 0.8942   |
+| Real/Bonafide | 0.8936    | 0.8952 | 0.8944   |
 
----
-
-### Feature Type Analysis
-
-**Average Performance by Feature Type:**
-
-| Feature | Avg Eval Accuracy | Std   | Avg EER | Std   |
-| ------- | ----------------- | ----- | ------- | ----- |
-| CQT     | 95.98%            | 0.53  | 3.60%   | 0.55  |
-| Mel     | 94.55%            | 3.23  | 4.50%   | 3.17  |
-| LFCC    | 85.46%            | 10.09 | 11.99%  | 11.01 |
-
-**Key Insight:** CQT features provide the most consistent performance across all models with the lowest standard deviation.
-
-![Feature Analysis](images/feature_analysis.png)
-![Top Models](images/top_models.png)
+<p float="left" align="center">
+  <img src="images/results_17_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_17_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_17_13.png" width="95%" title="Accuracy Comparison" />
+</p>
 
 ---
 
-### Top Performing Configurations
+### Feature Type 2 (MFCC)
 
-**Top 5 Model-Feature Combinations:**
+#### Evaluation Set Metrics
 
-| Rank | Model                    | Feature | Accuracy | EER    |
-| ---- | ------------------------ | ------- | -------- | ------ |
-| 1    | EfficientNetB2_Attention | Mel     | 97.70%   | 1.103% |
-| 2    | EfficientNetB2           | Mel     | 96.97%   | 2.757% |
-| 3    | EfficientNetB2           | CQT     | 96.78%   | 2.757% |
-| 4    | SEResNet                 | CQT     | 96.05%   | 3.860% |
-| 5    | Ensemble                 | Mel     | 96.05%   | 1.838% |
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 92.00% |
+| ROC AUC  | 0.9750 |
+| EER      | 8.09%  |
 
----
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.9208    | 0.9191 | 0.9200   |
+| Real/Bonafide | 0.9193    | 0.9210 | 0.9201   |
 
-### Generalization Analysis (Dev vs Eval)
-
-<table><tr>
-<td><img src="images/dev_vs_eval_scatter.png" alt="Dev vs Eval Scatter" width="400"/></td>
-<td><img src="images/roc_auc_comparison.png" alt="ROC AUC Comparison" width="400"/></td>
-</tr></table>
-
-**Generalization Gap (Dev Accuracy - Eval Accuracy):**
-
-| Model                    | Feature | Dev Acc | Eval Acc | Gap    |
-| ------------------------ | ------- | ------- | -------- | ------ |
-| EfficientNetB2_Attention | Mel     | 99.96%  | 97.70%   | 2.26%  |
-| LCNN                     | CQT     | 99.47%  | 95.50%   | 3.97%  |
-| EfficientNetB2_Attention | LFCC    | 99.47%  | 76.75%   | 22.72% |
+<p float="left" align="center">
+  <img src="images/results_18_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_18_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_18_13.png" width="95%" title="Accuracy Comparison" />
+</p>
 
 ---
 
-### Summary
+### Feature Type 4 (CQT)
 
-- **Best Overall**: EfficientNet-B2 with Attention + Mel Spectrogram (97.70% accuracy, 1.103% EER)
-- **Most Consistent Feature**: CQT with lowest variance across models
-- **Best Generalization**: EfficientNet-B2 with Attention + Mel (only 2.26% gap)
+#### Evaluation Set Metrics
+
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 93.20% |
+| ROC AUC  | 0.9815 |
+| EER      | 6.80%  |
+
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.9320    | 0.9301 | 0.9311   |
+| Real/Bonafide | 0.9302    | 0.9320 | 0.9311   |
+
+<p float="left" align="center">
+  <img src="images/results_19_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_19_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_19_13.png" width="95%" title="Accuracy Comparison" />
+</p>
+
+---
+
+## SENet
+
+### Feature Type 1 (Mel Spectrogram)
+
+#### Evaluation Set Metrics
+
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 89.71% |
+| ROC AUC  | 0.9655 |
+| EER      | 10.29% |
+
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.8978    | 0.8960 | 0.8969   |
+| Real/Bonafide | 0.8962    | 0.8978 | 0.8970   |
+
+<p float="left" align="center">
+  <img src="images/results_21_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_21_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_21_13.png" width="95%" title="Accuracy Comparison" />
+</p>
+
+---
+
+### Feature Type 2 (MFCC)
+
+#### Evaluation Set Metrics
+
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 92.37% |
+| ROC AUC  | 0.9750 |
+| EER      | 7.72%  |
+
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.9244    | 0.9228 | 0.9236   |
+| Real/Bonafide | 0.9229    | 0.9246 | 0.9237   |
+
+<p float="left" align="center">
+  <img src="images/results_22_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_22_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_22_13.png" width="95%" title="Accuracy Comparison" />
+</p>
+
+---
+
+### Feature Type 4 (CQT)
+
+#### Evaluation Set Metrics
+
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 93.20% |
+| ROC AUC  | 0.9802 |
+| EER      | 6.80%  |
+
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.9320    | 0.9301 | 0.9311   |
+| Real/Bonafide | 0.9302    | 0.9320 | 0.9311   |
+
+<p float="left" align="center">
+  <img src="images/results_23_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_23_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_23_13.png" width="95%" title="Accuracy Comparison" />
+</p>
+
+---
+
+## Additional Feature Experiments (EfficientNet-B2 with Attention)
+
+### Feature Type 5
+
+#### Evaluation Set Metrics
+
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 81.89% |
+| ROC AUC  | 0.8956 |
+| EER      | 18.20% |
+
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.8195    | 0.8180 | 0.8188   |
+| Real/Bonafide | 0.8183    | 0.8199 | 0.8191   |
+
+<p float="left" align="center">
+  <img src="images/results_28_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_28_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_28_13.png" width="95%" title="Accuracy Comparison" />
+</p>
+
+---
+
+### Feature Type 6
+
+#### Evaluation Set Metrics
+
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 62.96% |
+| ROC AUC  | 0.6773 |
+| EER      | 37.13% |
+
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.6298    | 0.6287 | 0.6293   |
+| Real/Bonafide | 0.6294    | 0.6305 | 0.6299   |
+
+<p float="left" align="center">
+  <img src="images/results_29_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_29_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_29_13.png" width="95%" title="Accuracy Comparison" />
+</p>
+
+---
+
+## RawNet3 (Raw Waveform)
+
+#### Evaluation Set Metrics
+
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 78.12% |
+| ROC AUC  | 0.8729 |
+| EER      | 21.88% |
+
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.7812    | 0.7812 | 0.7812   |
+| Real/Bonafide | 0.7812    | 0.7812 | 0.7812   |
+
+<p float="left" align="center">
+  <img src="images/results_31_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_31_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_31_13.png" width="95%" title="Accuracy Comparison" />
+</p>
+
+---
+
+## SimpleCNN (Raw Waveform)
+
+#### Evaluation Set Metrics
+
+| Metric   | Value  |
+| -------- | ------ |
+| Accuracy | 64.52% |
+| ROC AUC  | 0.6868 |
+| EER      | 35.66% |
+
+| Class         | Precision | Recall | F1-Score |
+| ------------- | --------- | ------ | -------- |
+| Fake/Spoof    | 0.6458    | 0.6434 | 0.6446   |
+| Real/Bonafide | 0.6447    | 0.6471 | 0.6459   |
+
+<p float="left" align="center">
+  <img src="images/results_33_9.png" width="45%" title="Confusion Matrix (Eval)" />
+  <img src="images/results_33_11.png" width="45%" title="ROC Curve (Eval)" /> 
+</p>
+<p align="center">
+  <img src="images/results_33_13.png" width="95%" title="Accuracy Comparison" />
+</p>
+
+---
+
+## Summary Table (Eval)
+
+| Model                       | Feature Type    | Eval Accuracy | Eval EER  | Eval ROC AUC |
+| --------------------------- | --------------- | ------------- | --------- | ------------ |
+| EfficientNet-B2 + Attention | Mel Spectrogram | **97.70%**    | **2.39%** | 0.9978       |
+| EfficientNet-B2 + Attention | MFCC            | 76.75%        | 23.35%    | 0.8357       |
+| EfficientNet-B2 + Attention | CQT             | 96.05%        | 3.68%     | 0.9905       |
+| EfficientNet-B2             | Mel Spectrogram | 96.97%        | 3.12%     | 0.9944       |
+| EfficientNet-B2             | MFCC            | 72.52%        | 27.57%    | 0.8100       |
+| EfficientNet-B2             | CQT             | 96.78%        | 3.31%     | 0.9928       |
+| LCNN Large                  | Mel Spectrogram | 91.82%        | 8.27%     | 0.9771       |
+| LCNN Large                  | MFCC            | 84.01%        | 15.99%    | 0.9244       |
+| LCNN Large                  | CQT             | 94.12%        | 5.88%     | 0.9867       |
+| LCNN                        | Mel Spectrogram | 92.56%        | 7.44%     | 0.9791       |
+| LCNN                        | MFCC            | 91.08%        | 8.82%     | 0.9653       |
+| LCNN                        | CQT             | 95.50%        | 4.78%     | 0.9903       |
+| SEResNet                    | Mel Spectrogram | 89.43%        | 10.66%    | 0.9674       |
+| SEResNet                    | MFCC            | 92.00%        | 8.09%     | 0.9750       |
+| SEResNet                    | CQT             | 93.20%        | 6.80%     | 0.9815       |
+| SENet                       | Mel Spectrogram | 89.71%        | 10.29%    | 0.9655       |
+| SENet                       | MFCC            | 92.37%        | 7.72%     | 0.9750       |
+| SENet                       | CQT             | 93.20%        | 6.80%     | 0.9802       |
+| RawNet3                     | Raw Waveform    | 78.12%        | 21.88%    | 0.8729       |
+| SimpleCNN                   | Raw Waveform    | 64.52%        | 35.66%    | 0.6868       |
+
+**Best performing model:** EfficientNet-B2 with Attention using Mel Spectrogram features achieved the highest evaluation accuracy (97.70%) and lowest EER (2.39%).
