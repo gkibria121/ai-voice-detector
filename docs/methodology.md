@@ -9,10 +9,10 @@ graph TD
 
     subgraph "Data Pipeline"
         Input[Raw Audio Input]:::storage --> Load[Load & Decode]:::process
-        Load --> Norm["Preprocess\n16kHz | Mono | 64k Samples"]:::process
+        Load --> Norm["Preprocess</br>16kHz | Mono | 64k Samples"]:::process
         Norm --> Split{Phase?}:::decision
         
-        Split -- Training --> Aug["Data Augmentation\nNoise, RIR, Pitch, SpecAug"]:::process
+        Split -- Training --> Aug[Data Augmentation</br> Noise, RIR, Pitch, SpecAug etc]:::process
         Split -- Inference --> Clean[Identity / Center Crop]:::process
         
         Aug --> Feat[Feature Extraction]:::process
@@ -23,13 +23,16 @@ graph TD
         Feat --> Mel[Log-Mel Spectrogram]:::storage
         Feat --> LFCC[LFCC]:::storage
         Feat --> CQT[CQT]:::storage
+        Feat --> OtherFeature[Other]:::storage
         Feat --> Raw[Raw Waveform]:::storage
+     
     end
 
     subgraph "Model Backbone"
-        Mel --> CNN[EfficientNet / ResNet / LCNN]:::process
+        Mel --> CNN[EfficientNetB2 / SeResNet / LCNN/ Ensemble ]:::process
         LFCC --> CNN
         CQT --> CNN
+        OtherFeature --> CNN
         Raw --> RawNet[RawNet3 / SimpleCNN]:::process
     end
 
@@ -49,54 +52,85 @@ graph TD
 ## Training & Validation Lifecycle
 
 ```mermaid
-stateDiagram-v2
+flowchart TD
     %% Training Loop Diagram derived from main.py
-    [*] --> Init: Load Config & Reproducibility
-    Init --> EpochLoop: Start Training Loop
+    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
+    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef final fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
     
-    state EpochLoop {
-        [*] --> Train: "Train Epoch\n(AMP Mixed Precision)"
-        Train --> Validate: "Validate Epoch\n(Dev Set)"
-        Validate --> CheckBest: Compute Dev EER
-        
-        state CheckBest {
-            [*] --> IsBest
-            IsBest --> SaveBest: New Best Model
-            IsBest --> UpdateTracker: No Improvement
-            SaveBest --> EvalTest: If --eval_best
-            EvalTest --> UpdateTracker
-        }
-        
-        UpdateTracker --> SWA_Update: Update SWA Weights
-        SWA_Update --> Train: Next Epoch
-    }
+    Start([Start]):::storage --> Init[Load Config & Reproducibility]:::storage
+    Init --> EpochStart[Start Training Loop]:::process
     
-    EpochLoop --> Finalize: Max Epochs Reached
-    Finalize --> ProcessSWA: Apply SWA & Update BN
-    ProcessSWA --> FinalEval: "Final Evaluation\n(Test Set)"
-    FinalEval --> Metrics: Save Metrics & Visualizations
-    Metrics --> [*]
+    subgraph EpochLoop["Training Loop"]
+        Train[Train Epoch<br/>AMP Mixed Precision]:::process
+        Validate[Validate Epoch<br/>Dev Set]:::process
+        CheckEER[Compute Dev EER]:::process
+        
+        subgraph CheckBest["Best Model Check"]
+            IsBest{Is Best<br/>Model?}:::decision
+            SaveBest[Save Best Model]:::storage
+            EvalTest["Evaluate on Test ( Optional )"]:::process
+            UpdateTracker[Update Tracker]:::process
+        end
+        
+        SWA[Update SWA Weights]:::process
+        
+        Train --> Validate
+        Validate --> CheckEER
+        CheckEER --> IsBest
+        IsBest -->|New Best| SaveBest
+        IsBest -->|No Improvement| UpdateTracker
+        SaveBest --> EvalTest
+        EvalTest --> UpdateTracker
+        UpdateTracker --> SWA
+        SWA --> Train
+    end
+    
+    EpochStart --> Train
+    Train -.->|Max Epochs| Finalize[Finalize Training]:::process
+    
+    Finalize --> ProcessSWA[Apply SWA &<br/>Update BN]:::process
+    ProcessSWA --> FinalEval[Final Evaluation<br/>Test Set]:::process
+    FinalEval --> Metrics[Save Metrics &<br/>Visualizations]:::final
+    Metrics --> End([End]):::final
 ```
 ## Inference Pipeline
 
 ```mermaid
-flowchart LR
+flowchart TD
     %% Inference Pipeline Flowchart
-    Input(Audio File) --> Prep["Preprocess\nResample & Pad"]
-    Prep --> Feat[Extract Features]
-    Feat --> Model[Model Forward Pass]
-    Model --> Logits(Logits)
-    Logits --> Soft{"Softmax\n> Threshold?"}
+    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
+    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef success fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    classDef warning fill:#ffcdd2,stroke:#c62828,stroke-width:2px
+    classDef xai fill:#e0f2f1,stroke:#00695c,stroke-width:2px,stroke-dasharray: 5 5
     
-    Soft -- Yes --> Real[Bonafide]
-    Soft -- No --> Fake[Spoof]
+    Input(Audio File):::storage
+    Prep["Preprocess<br/>Resample & Pad"]:::process
+    Feat[Extract Features]:::process
+    Model[Model Forward Pass]:::process
+    Logits(Logits):::storage
+    Soft{"Softmax<br/>> Threshold?"}:::decision
     
-    Model -.-> XAI["XAI Analysis\nGradCAM / Attention"]
-    XAI -.-> Vis[Heatmap Visualization]
+    Real[Bonafide]:::success
+    Fake[Spoof]:::warning
     
-    style Input fill:#e1f5fe
-    style Real fill:#c8e6c9
-    style Fake fill:#ffcdd2
+    XAI["XAI Analysis<br/>GradCAM / Attention"]:::xai
+    Vis[Heatmap Visualization]:::xai
+    
+    Input --> Prep
+    Prep --> Feat
+    Feat --> Model
+    Model --> Logits
+    Logits --> Soft
+    
+    Soft -->|Yes| Real
+    Soft -->|No| Fake
+    
+    Model -.-> XAI
+    XAI -.-> Vis
 ```
 ## 1. Data Preparation and Preprocessing
 

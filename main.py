@@ -161,7 +161,7 @@ def main(args: argparse.Namespace) -> None:
     
     optim_config["epochs"] = config["num_epochs"]
     
-    # This repository maps dataset id 1 to Fake-or-Real (not ASVspoof).
+    # This repository maps dataset id 1 to Fake-or-Real .
     # No ASVspoof track handling is required; use `track=None`.
     track = None
     
@@ -266,13 +266,7 @@ def main(args: argparse.Namespace) -> None:
     else:
         # Fallback: if other dataset ids are used, prefer config path then dataset_info
         database_path = Path(config.get("database_path", dataset_info.get("base_path", ".")))
-
-    prefix_2019 = None
-
-    # No ASVspoof protocol files are used in this trimmed repo (Fake-or-Real only).
-    dev_trial_path = None
-    eval_trial_path = None
-
+ 
     # define model related paths
     feature_type = config.get("feature_type", 0)
     # Support multimodal feature_type (list of ints)
@@ -612,8 +606,7 @@ def main(args: argparse.Namespace) -> None:
         optimizer_swa = None
 
     best_dev_eer = 100.0
-    best_eval_eer = 100.0
-    best_eval_acc = 0.0
+    best_eval_eer = 100.0 
     # t-DCF is only applicable to ASVspoof evaluations; this trimmed repo
     # uses Fake-or-Real and does not compute t-DCF. Leave as None.
     best_dev_tdcf = None
@@ -1365,7 +1358,7 @@ if __name__ == "__main__":
         from cli import parse_args
     except Exception:
         # Fallback: build a minimal parser if `cli.py` is unavailable for any reason.
-        parser = argparse.ArgumentParser(description="ASVspoof detection system")
+        parser = argparse.ArgumentParser(description="Deep fake audio detection system")
         parser.add_argument("--config", dest="config", type=str, help="configuration file", required=True)
         parser.add_argument("--output_dir", dest="output_dir", type=str, help="output directory for results", default="./exp_result")
         parser.add_argument("--seed", type=int, default=1234, help="random seed (default: 1234)")
@@ -1374,7 +1367,7 @@ if __name__ == "__main__":
         parser.add_argument("--epochs", type=int, default=None)
         parser.add_argument("--batch_size", type=int, default=None)
         parser.add_argument("--feature_type", type=str, default=None,
-                    help="feature type: 0=raw, 1=mel_spectrogram, 2=lfcc, 3=mfcc, 4=cqt. For multimodal, pass comma-separated list e.g. '1,2,3'.")
+                    help="feature type: 0=raw, 1=mel_spectrogram, 2=lfcc, 3=mfcc, 4=cqt, 5=chroma, 6=spectral contrast. For multimodal, pass comma-separated list e.g. '1,2,3'.")
         parser.add_argument("--feature_analysis", action="store_true")
         parser.add_argument("--random_noise", action="store_true")
         parser.add_argument("--weight_avg", action="store_true")

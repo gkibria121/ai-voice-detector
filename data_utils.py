@@ -22,9 +22,7 @@ FEATURE_TYPES = {
     3: "mfcc",
     4: "cqt",  # Constant-Q Transform - best for fake vs real audio
     5: "chroma",  # Chroma feature (pitch class profile)
-    6: "spectral_contrast", # Spectral contrast
-    7: "tonnetz", # Tonal centroid features
-    8: "prosodic",  # Prosodic features (F0, energy, speaking rate)
+    6: "spectral_contrast", # Spectral contrast 
 }
 
 
