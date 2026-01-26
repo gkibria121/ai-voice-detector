@@ -160,14 +160,14 @@ Looking at the actual saliency maps across both test cases reveals the issue:
 
 **On FAKE audio (file48.wav):**
 
-- ✅ Standalone EfficientNetB2: Focuses on low frequencies → Correctly detects FAKE
-- ✅ Ensemble EfficientNetB2: Focuses on low frequencies → Correctly detects FAKE
+- Standalone EfficientNetB2: Focuses on low frequencies → Correctly detects FAKE
+- Ensemble EfficientNetB2: Focuses on low frequencies → Correctly detects FAKE
 - Both versions looking at similar regions and agreeing
 
 **On REAL audio (file5.wav):**
 
-- ✅ Standalone EfficientNetB2: Distributed attention across frequencies → Correctly detects REAL (with 80% confidence)
-- ❌ Ensemble EfficientNetB2: Similar attention pattern → **INCORRECTLY** says FAKE (with 100% confidence)
+- Standalone EfficientNetB2: Distributed attention across frequencies → Correctly detects REAL (with 80% confidence)
+- Ensemble EfficientNetB2: Similar attention pattern → **INCORRECTLY** says FAKE (with 100% confidence)
 - Both versions looking at similar regions but interpreting them completely differently!
 
 ### Key Findings
