@@ -1,49 +1,6 @@
 ## System Overview
 
-```mermaid
-flowchart TB
-    subgraph Row1[" "]
-        direction LR
-        subgraph Input
-            A[Audio File]
-        end
-
-        subgraph Preprocessing
-            B[Load & Resample<br/>16kHz, Mono]
-            C[Fixed Length<br/>64,600 samples]
-        end
-
-        subgraph Features["Feature Extraction"]
-            D[Log-Mel / LFCC<br/>CQT / Raw / Other]
-        end
-
-        subgraph Training["Training Only"]
-            E[Data Augmentation]
-        end
-
-        A --> B --> C --> D --> E
-    end
-
-    subgraph Row2[" "]
-        direction LR
-        subgraph Model["Neural Network"]
-            F[EfficientNet-B2<br/>LCNN / SE-ResNet<br/>RawNet3]
-        end
-
-        subgraph Output
-            G{Softmax}
-            H[Bonafide]
-            I[Spoof]
-        end
-
-        F --> G
-        G -->|Score ≥ θ| H
-        G -->|Score < θ| I
-    end
-
-    D -.-> F
-    E -.-> F
-```
+![System Overview](images/overview.png)
 
 ### Document Structure
 
@@ -1116,50 +1073,7 @@ We apply multiple regularization techniques to prevent overfitting:
 
 ### 6.1 Training Lifecycle Diagram
 
-```mermaid
-flowchart TD
-    %% Training Loop Diagram derived from main.py
-    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
-    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef final fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-
-    Start(["1. Start"]):::storage --> Init["2. Load Config & Reproducibility"]:::storage
-    Init --> EpochStart["3. Start Training Loop"]:::process
-
-    subgraph EpochLoop["Loop (Repeat per Epoch)"]
-        Train["4. Train Epoch<br/>AMP Mixed Precision"]:::process
-        Validate["5. Validate Epoch<br/>Dev Set"]:::process
-        CheckEER["6. Compute Dev EER"]:::process
-
-        subgraph CheckBest["Best Model Check"]
-            IsBest{"6a. Is Best<br/>Model?"}:::decision
-            SaveBest["6b. Save Best Model"]:::storage
-            EvalTest["6c. Evaluate on Test"]:::process
-            UpdateTracker["6d. Update Tracker"]:::process
-        end
-
-        SWA["7. Update SWA Weights"]:::process
-
-        Train --> Validate
-        Validate --> CheckEER
-        CheckEER --> IsBest
-        IsBest -->|New Best| SaveBest
-        IsBest -->|No Improvement| UpdateTracker
-        SaveBest --> EvalTest
-        EvalTest --> UpdateTracker
-        UpdateTracker --> SWA
-        SWA --> Train
-    end
-
-    EpochStart --> Train
-    Train -.->|Max Epochs| Finalize["8. Finalize Training"]:::process
-
-    Finalize --> ProcessSWA["9. Apply SWA &<br/>Update BN"]:::process
-    ProcessSWA --> FinalEval["10. Final Evaluation<br/>Test Set"]:::process
-    FinalEval --> Metrics["11. Save Metrics &<br/>Visualizations"]:::final
-    Metrics --> End(["12. End"]):::final
-```
+<img src="images/training.png"  height="800">
 
 ### 6.1.1 Training Steps Overview
 
@@ -1344,39 +1258,7 @@ The ensemble is optimized using an end-to-end joint training protocol. Rather th
 
 ### 9.1 Inference Flow
 
-```mermaid
-flowchart TD
-    %% Inference Pipeline Flowchart - 6 Stages
-    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
-    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef success fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
-    classDef warning fill:#ffcdd2,stroke:#c62828,stroke-width:2px
-    classDef xai fill:#e0f2f1,stroke:#00695c,stroke-width:2px,stroke-dasharray: 5 5
-
-    Input("Audio Input"):::storage
-    Stage1["Stage 1: Audio Loading<br/>& Preprocessing"]:::process
-    Stage2["Stage 2: Fixed-Length<br/>Normalization"]:::process
-    Stage3["Stage 3: Feature<br/>Extraction"]:::process
-    Stage4["Stage 4: Model<br/>Inference"]:::process
-    Stage5{"Stage 5: Decision<br/>Making"}:::decision
-
-    Real["Bonafide<br/>(Genuine Audio)"]:::success
-    Fake["Spoof<br/>(AI-Generated)"]:::warning
-
-    Stage6["Stage 6: XAI Analysis<br/>& Visualization"]:::xai
-
-    Input --> Stage1
-    Stage1 --> Stage2
-    Stage2 --> Stage3
-    Stage3 --> Stage4
-    Stage4 --> Stage5
-
-    Stage5 -->|Score ≥ Threshold| Real
-    Stage5 -->|Score < Threshold| Fake
-
-    Stage4 -.->|Optional| Stage6
-```
+<img src="images/pipeline.png" height="800">
 
 ### 9.1.1 Inference Steps Overview
 
