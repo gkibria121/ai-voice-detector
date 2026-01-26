@@ -1,40 +1,48 @@
 ## System Overview
 
 ```mermaid
-flowchart LR
-    subgraph Input
-        A[Audio File]
+flowchart TB
+    subgraph Row1[" "]
+        direction LR
+        subgraph Input
+            A[Audio File]
+        end
+
+        subgraph Preprocessing
+            B[Load & Resample<br/>16kHz, Mono]
+            C[Fixed Length<br/>64,600 samples]
+        end
+
+        subgraph Features["Feature Extraction"]
+            D[Log-Mel / LFCC<br/>CQT / Raw / Other]
+        end
+
+        subgraph Training["Training Only"]
+            E[Data Augmentation]
+        end
+        
+        A --> B --> C --> D --> E
     end
 
-    subgraph Preprocessing
-        B[Load & Resample<br/>16kHz, Mono]
-        C[Fixed Length<br/>64,600 samples]
+    subgraph Row2[" "]
+        direction LR
+        subgraph Model["Neural Network"]
+            F[EfficientNet-B2<br/>LCNN / SE-ResNet<br/>RawNet3]
+        end
+
+        subgraph Output
+            G{Softmax}
+            H[Bonafide]
+            I[Spoof]
+        end
+        
+        F --> G
+        G -->|Score ≥ θ| H
+        G -->|Score < θ| I
     end
 
-    subgraph Features["Feature Extraction"]
-        D[Log-Mel / LFCC<br/>CQT / Raw]
-    end
-
-    subgraph Training["Training Only"]
-        E[Data Augmentation]
-    end
-
-    subgraph Model["Neural Network"]
-        F[EfficientNet-B2<br/>LCNN / SE-ResNet<br/>RawNet3]
-    end
-
-    subgraph Output
-        G{Softmax}
-        H[Bonafide]
-        I[Spoof]
-    end
-
-    A --> B --> C --> D
-    D --> E --> F
-    D --> F
-    F --> G
-    G -->|Score ≥ θ| H
-    G -->|Score < θ| I
+    D -.-> F
+    E -.-> F
 ```
 
 ### Document Structure
@@ -47,7 +55,7 @@ flowchart LR
 | 4       | Network Architectures | SimpleCNN, EfficientNet-B2, LCNN, RawNet3, SE-ResNet                              |
 | 5       | Training              | Loss, optimizer, regularization, SWA, training loop                               |
 | 6       | Inference             | Pipeline stages, batch processing                                                 |
-| 7       | Evaluation Metrics    | EER, accuracy, ROC/AUC                                                            |
+| 7       | Evaluation Metrics    | EER, accuracy, ROC/AUC, Precision, Recall , F1-Score                                                            |
 | 8       | Ensemble Strategy     | Multi-model fusion, soft voting                                                   |
 | 9       | Optimization          | Mixed precision, TF32, memory layout                                              |
 | 10      | Reproducibility       | Seed control, configuration management                                            |
@@ -61,7 +69,24 @@ flowchart LR
 ### 1.1 Dataset Description
 
 The system was developed and evaluated using the "Fake-or-Real" dataset, which consists of bonafide (genuine human) and spoofed (synthetically generated) audio recordings. The dataset is organized into training, validation, and testing partitions, with balanced representation of both classes to facilitate unbiased model learning.
+The dataset aggregates data from the latest TTS solutions (such as Deep Voice 3 and Google Wavenet TTS) as well as a variety of real human speech, including the Arctic Dataset (http://festvox.org/cmu_arctic/), LJSpeech Dataset (https://keithito.com/LJ-Speech-Dataset/), VoxForge Dataset (http://www.voxforge.org).
 
+The dataset is published in four versions: for-original, for-norm, for-2sec and for-rerec.
+
+The first version, named for-original, contains the files as collected from the speech sources, without any modification (balanced version).
+
+The second version, called for-norm, contains the same files, but balanced in terms of gender and class and normalized in terms of sample rate, volume and number of channels.
+
+The third one, named for-2sec is based on the second one, but with the files truncated at 2 seconds.
+
+The last version, named for-rerec, is a rerecorded version of the for-2second dataset, to simulate a scenario where an attacker sends an utterance through a voice channel (i.e. a phone call or a voice message).
+
+In our system we have used for-2second version.
+```
+      Training samples: 13956 (Real: 6978, Fake: 6978)
+      Validation samples: 2826 (Real: 1413, Fake: 1413)
+      Testing samples: 1088 (Real: 544, Fake: 544)
+```
 ### 1.2 Audio Loading and Standardization
 
 All audio samples undergo standardized preprocessing to ensure consistency across the pipeline. Audio files are loaded using the `soundfile` library, which provides automatic format detection and efficient decoding for multiple audio formats including WAV, FLAC, and MP3.
@@ -74,7 +99,7 @@ To ensure consistent input dimensions, multi-channel audio signals (e.g., stereo
 
 **Step 3: Resampling**
 The system processes audio at a standard sampling rate of 16 kHz. Feature extraction parameters are tuned for this rate to adhere to the Nyquist-Shannon sampling theorem for speech signals up to 8 kHz.
-The sampling rate was selected based on the Nyquist-Shannon sampling theorem, which ensures adequate representation of speech frequencies (typically below 8 kHz) while maintaining computational tractability.
+ 
 
 ### 1.3 Fixed-Length Segmentation
 
@@ -119,57 +144,101 @@ The system supports multiple acoustic feature representations, each capturing di
 | Spectral Contrast   | $(7, T)$       | Texture and timbre discrimination |
 
 where $N$ denotes the number of samples (64,600) and $T$ represents the temporal dimension (varies by feature type).
+ 
 
-### 2.2 Log-Mel Spectrogram
+### 2.2 Raw Waveform
 
-The Log-Mel Spectrogram serves as the primary feature representation for CNN-based architectures. This transformation converts the time-domain signal into a time-frequency representation that approximates human auditory perception.
+**Dimensionality:** $(N,)$ where $N = 64,600$ samples
 
-**Mathematical Formulation:**
+**Purpose:** End-to-end learning without manual feature engineering
 
-The extraction process involves five sequential transformations:
+**Characteristics:**
+Raw waveform represents the audio signal in its most fundamental form—the time-domain amplitude variations. This representation preserves all information present in the original signal without any transformation or information loss.
 
-**1. Short-Time Fourier Transform (STFT):**
+**Advantages:**
+- No information loss from transformation processes
+- Enables the neural network to learn optimal representations directly from data
+- Eliminates reliance on hand-crafted features that may miss subtle artifacts
+
+**Challenges:**
+- Requires deeper networks with more parameters to learn meaningful patterns
+- Computationally intensive for processing long sequences
+- May struggle with generalization without sufficient training data
+
+**Use Cases:** Particularly effective with deep learning architectures like WaveNet, raw CNN models, or transformer-based systems that can automatically discover relevant acoustic patterns for deepfake detection.
+
+---
+
+### 2.3 Log-Mel Spectrogram
+
+**Dimensionality:** $(128, T)$ - 128 Mel frequency bands across $T$ time frames
+
+**Purpose:** General-purpose CNN models with perceptually-motivated frequency representation
+
+### Mathematical Formulation
+
+The extraction involves five sequential transformations:
+
+**Step 1: Short-Time Fourier Transform (STFT)**
 
 $$X(m, k) = \sum_{n=0}^{N-1} x(n + mH) w(n) e^{-j2\pi kn/N}$$
 
-where $w(n)$ is the Hann window, $H$ is the hop length (160 samples), and $N$ is the FFT size (512).
+- $w(n)$: Hann window function
+- $H$: Hop length (160 samples)
+- $N$: FFT size (512)
+- $m$: Time frame index
+- $k$: Frequency bin index
 
-**2. Power Spectrum:**
+**Step 2: Power Spectrum**
 
 $$P(m, k) = |X(m, k)|^2$$
 
-**3. Mel Filterbank Application:**
+Converts complex STFT coefficients to power values, representing energy at each time-frequency point.
+
+**Step 3: Mel Filterbank Application**
 
 $$S_{\text{mel}}(m, b) = \sum_{k=0}^{N/2} P(m, k) \cdot H_b(k)$$
 
-where $H_b(k)$ represents the $b$-th triangular Mel filter ($b = 1, \ldots, 128$).
+- $H_b(k)$: $b$-th triangular Mel filter
+- $b = 1, \ldots, 128$: 128 Mel bands
 
-**4. Logarithmic Compression:**
+**Step 4: Logarithmic Compression**
 
 $$S_{\log}(m, b) = 10 \log_{10}(S_{\text{mel}}(m, b) + \epsilon)$$
 
-where $\epsilon = 10^{-10}$ prevents numerical instability.
+- $\epsilon = 10^{-10}$: Prevents numerical instability for zero values
+- Compresses dynamic range and approximates human loudness perception
 
-**5. Normalization (Mean-Variance Normalization):**
+**Step 5: Normalization (Mean-Variance Normalization)**
 
-After logarithmic compression, Mel spectrograms are typically normalized to have zero mean and unit variance:
+$$S_{\text{norm}}(m,b) = \frac{S_{\log}(m,b) - \mu_b}{\sigma_b}$$
 
-$$S_norm(m,b) = (S_log(m,b) - μ_b) / σ_b$$
+- $\mu_b$: Mean of the $b$-th Mel band across all time frames
+- $\sigma_b$: Standard deviation of the $b$-th Mel band
 
-where:
+### Perceptual Motivation
 
-- $μ_b$ is the mean of the b-th Mel band across all time frames
-- $σ_b$ is the standard deviation of the b-th Mel band across all time frames
+The Mel scale approximates the non-linear frequency resolution of human hearing. It emphasizes perceptually relevant frequencies for speech (300-4000 Hz), making it particularly effective for tasks involving human auditory perception. The logarithmic compression further mimics the way humans perceive sound intensity.
 
-**Perceptual Motivation:** The Mel scale approximates the non-linear frequency resolution of human hearing, emphasizing perceptually relevant frequencies for speech (300-4000 Hz).
+**Advantages:**
+- Biologically inspired representation aligned with human auditory perception
+- Compact representation with good discriminative power
+- Well-established in speech processing with extensive research support
+- Effective for CNN-based architectures
 
-### 2.3 Linear Frequency Cepstral Coefficients
+**Detection Relevance:** Captures spectral characteristics and temporal evolution patterns that may differ between genuine and AI-generated speech, particularly in prosody and spectral envelope.
 
-LFCC was specifically designed for spoofing detection tasks, as it employs a linear frequency scale rather than the perceptually-motivated Mel scale. This characteristic makes LFCC particularly sensitive to high-frequency artifacts often present in synthetic speech.
+---
 
-**Mathematical Formulation:**
+### 2.4 Linear Frequency Cepstral Coefficients (LFCC)
 
-**1. Linear Filterbank Construction:**
+**Dimensionality:** $(13, T)$ - 13 cepstral coefficients across $T$ time frames
+
+**Purpose:** Anti-spoofing detection with linear frequency emphasis
+
+### Mathematical Formulation
+
+**Step 1: Linear Filterbank Construction**
 
 $$
 H_b^{\text{lin}}(k) = \begin{cases}
@@ -179,39 +248,224 @@ H_b^{\text{lin}}(k) = \begin{cases}
 \end{cases}
 $$
 
-where filter centers are linearly spaced: $f_b = b \cdot \frac{f_s/2}{B}$ for $b = 0, \ldots, B$ (20 filters).
+Filter centers are linearly spaced: $f_b = b \cdot \frac{f_s/2}{B}$ for $b = 0, \ldots, B$ (20 filters)
 
-**2. Filterbank Application:**
+**Step 2: Filterbank Application**
 
 $$S_{\text{lin}}(m, b) = \sum_{k=0}^{N/2} P(m, k) \cdot H_b^{\text{lin}}(k)$$
 
-**3. Logarithmic Compression:**
+**Step 3: Logarithmic Compression**
 
 $$S_{\log}(m, b) = \log(S_{\text{lin}}(m, b) + \epsilon)$$
 
-**4. Discrete Cosine Transform (DCT):**
+**Step 4: Discrete Cosine Transform (DCT)**
 
 $$\text{LFCC}(m, c) = \sum_{b=0}^{B-1} S_{\log}(m, b) \cos\left(\frac{\pi c(b + 0.5)}{B}\right)$$
 
-The first 13 coefficients ($c = 0, \ldots, 12$) are retained, providing a compact representation.
+The first 13 coefficients ($c = 0, \ldots, 12$) are retained.
 
-### 2.5 Multi-Modal Feature Fusion
+### Why Linear Frequency Scale?
 
-To leverage complementary information from multiple acoustic representations, the system employs an **intermediate fusion strategy**. This approach combines multiple feature types at the feature level before classification, enabling the model to learn complex inter-modal relationships and capture diverse acoustic characteristics of AI-generated speech.
+Unlike the Mel scale's perceptual emphasis on lower frequencies, the linear frequency scale treats all frequencies equally. This characteristic makes LFCC particularly sensitive to high-frequency artifacts often present in synthetic speech, such as those introduced by vocoder processing, phase discontinuities, or bandwidth limitations in generative models.
 
-**Intermediate Fusion Approach:**
+**Advantages:**
+- Superior sensitivity to high-frequency artifacts typical in synthetic speech
+- Specifically designed for spoofing and anti-spoofing tasks
+- Compact cepstral representation reduces dimensionality
+- DCT decorrelates filterbank outputs, improving efficiency
 
-Intermediate fusion operates by extracting multiple heterogeneous acoustic features independently and combining them before the classification stage. Unlike early fusion (raw signal concatenation) or late fusion (decision-level combination), intermediate fusion allows each feature extraction pipeline to preserve its specialized characteristics while enabling the network to learn joint representations across modalities.
+**Detection Relevance:** AI-generated speech often exhibits subtle artifacts in high-frequency regions due to vocoder reconstruction, neural network processing artifacts, or training data limitations. LFCC's linear frequency resolution makes these anomalies more detectable.
 
-The fusion process occurs in three stages:
+---
 
-1. **Independent Feature Extraction**: Each acoustic representation (Mel-spectrogram, LFCC, CQT) is computed separately, preserving their unique spectro-temporal properties
+### 2.5 Mel-Frequency Cepstral Coefficients (MFCC)
 
-2. **Temporal Alignment**: Features are synchronized along the time dimension to ensure consistent temporal correspondence across all modalities
+**Dimensionality:** $(13, T)$ - 13 cepstral coefficients across $T$ time frames
 
-3. **Channel-wise Concatenation**: Aligned features are concatenated along the channel dimension, creating a unified multi-modal input tensor with dimensions [C₁+C₂+C₃, F, T], where C represents the number of channels for each feature type, F is the frequency dimension, and T is the time dimension
+**Purpose:** Traditional speech processing and recognition
 
-This intermediate fusion strategy enables the convolutional neural network to learn cross-modal patterns and dependencies during training, potentially capturing artifacts that may be subtle or absent in individual feature spaces but distinctive when features are jointly analyzed. The concatenated representation provides a richer input space that combines complementary information from perceptual (Mel-spectrogram), cepstral (LFCC), and constant-Q (CQT) domains.
+### Mathematical Formulation
+
+MFCC extraction follows a similar pipeline to LFCC but uses Mel-scale filterbanks:
+
+**Steps 1-3:** Same as Log-Mel Spectrogram (STFT → Power Spectrum → Mel Filterbank)
+
+**Step 4: Logarithmic Compression**
+
+$$S_{\log}(m, b) = \log(S_{\text{mel}}(m, b) + \epsilon)$$
+
+**Step 5: Discrete Cosine Transform**
+
+$$\text{MFCC}(m, c) = \sum_{b=0}^{B-1} S_{\log}(m, b) \cos\left(\frac{\pi c(b + 0.5)}{B}\right)$$
+
+Typically, the first 13 coefficients are retained, sometimes augmented with delta (velocity) and delta-delta (acceleration) coefficients.
+
+### Differences from LFCC
+
+The key distinction is the use of Mel-scale filterbanks instead of linear-scale filterbanks. MFCCs emphasize lower frequencies where most speech information resides, while LFCCs maintain equal resolution across all frequencies.
+
+**Advantages:**
+- Highly compact representation capturing vocal tract characteristics
+- Robust to variations in recording conditions
+- Extensive history in speech recognition with well-understood properties
+- DCT provides decorrelated, efficient features
+
+**Detection Relevance:** MFCCs capture the spectral envelope and vocal tract resonances, which may exhibit unnatural patterns in AI-generated speech due to imperfect modeling of human speech production mechanisms.
+
+---
+
+### 2.6 Constant-Q Transform (CQT)
+
+**Dimensionality:** $(84, T)$ - 84 logarithmically-spaced frequency bins across $T$ time frames
+
+**Purpose:** Harmonic and tonal analysis with constant Q-factor
+
+### Mathematical Foundation
+
+CQT represents audio with logarithmically-spaced frequency bins, where each bin has a constant ratio of center frequency to bandwidth (Q-factor):
+
+$$Q = \frac{f_k}{\Delta f_k} = \text{constant}$$
+
+**Key Properties:**
+
+- **Frequency Resolution:** Bins per octave (typically 12 or 24)
+- **Time-Frequency Trade-off:** Higher frequency resolution at low frequencies, better temporal resolution at high frequencies
+- **Musical Alignment:** Frequency bins align with musical notes (when bins per octave = 12)
+
+### Computation
+
+$$X_{\text{CQT}}(k, n) = \frac{1}{N_k} \sum_{n'=0}^{N_k-1} w_k(n') x(n + n') e^{-j2\pi Q n'/N_k}$$
+
+where:
+- $k$: Frequency bin index
+- $N_k$: Window length for bin $k$ (varies with frequency)
+- $w_k$: Window function for bin $k$
+
+**Advantages:**
+- Logarithmic frequency resolution matches musical scales and harmonic structures
+- Superior representation of pitch and harmonic relationships
+- Efficient for analyzing tonal content and pitch-related features
+- Better frequency resolution at low frequencies where fundamental frequencies reside
+
+**Detection Relevance:** AI-generated speech may exhibit unnatural harmonic structures, abnormal pitch contours, or artifacts in the harmonic series. CQT's logarithmic frequency spacing makes these harmonic anomalies more apparent, particularly in the fundamental frequency and its overtones.
+
+---
+
+### 2.7 Chroma Features
+
+**Dimensionality:** $(12, T)$ - 12 pitch classes across $T$ time frames
+
+**Purpose:** Pitch class and harmony analysis
+
+### Concept
+
+Chroma features represent the intensity of each of the 12 pitch classes (C, C#, D, D#, E, F, F#, G, G#, A, A#, B) in Western music theory, regardless of octave. This creates an octave-invariant representation that captures tonal and harmonic content.
+
+### Computation
+
+**From CQT or STFT:**
+
+1. Map frequency bins to pitch classes (modulo 12 semitones)
+2. Sum energy across all octaves for each pitch class
+3. Normalize to create a 12-dimensional chroma vector per time frame
+
+$$\text{Chroma}(p, m) = \sum_{k \in \text{octaves of } p} |X(m, k)|^2$$
+
+where $p \in \{0, 1, \ldots, 11\}$ represents the 12 pitch classes.
+
+**Advantages:**
+- Octave-invariant representation focuses on harmonic content
+- Compact 12-dimensional representation per frame
+- Effective for capturing tonal and harmonic patterns
+- Robust to timbre variations
+
+**Detection Relevance:** Human speech exhibits characteristic pitch patterns and harmonic relationships based on vocal physiology. AI-generated speech may produce unnatural pitch class distributions, abnormal harmonic progressions, or inconsistent tonal characteristics, particularly in prosody-rich segments or emotional speech.
+
+---
+
+### 2.8 Spectral Contrast
+
+**Dimensionality:** $(7, T)$ - 7 contrast values (6 sub-bands + 1 full-band) across $T$ time frames
+
+**Purpose:** Texture and timbre discrimination
+
+### Concept
+
+Spectral contrast measures the difference between spectral peaks and valleys in different frequency sub-bands, providing information about the spectral envelope's shape and texture.
+
+### Computation
+
+**For each sub-band:**
+
+1. Divide frequency spectrum into sub-bands (typically 6-7 octave-scale bands)
+2. For each sub-band at each time frame:
+   - Identify peak values (top α-percentile, e.g., 85th percentile)
+   - Identify valley values (bottom α-percentile, e.g., 15th percentile)
+   - Compute contrast: $\text{Contrast}_b(m) = \log(\text{Peak}_b(m)) - \log(\text{Valley}_b(m))$
+
+**Mathematical Formulation:**
+
+$$\text{SC}_b(m) = 10\log_{10}\left(\frac{\mu_{\text{peak},b}(m)}{\mu_{\text{valley},b}(m)}\right)$$
+
+where:
+- $\mu_{\text{peak},b}(m)$: Mean of peak magnitudes in sub-band $b$ at frame $m$
+- $\mu_{\text{valley},b}(m)$: Mean of valley magnitudes in sub-band $b$
+
+**Advantages:**
+- Captures spectral envelope texture independent of overall energy
+- Robust to variations in recording level
+- Effective for distinguishing different timbres and textures
+- Complements energy-based features
+
+**Detection Relevance:** AI-generated speech may exhibit over-smoothed or unnaturally sharp spectral contrasts due to neural network regularization, training artifacts, or vocoder processing. The spectral texture of synthetic speech may lack the natural variability and micro-variations present in genuine human speech, particularly in transient regions like plosives and fricatives.
+
+---
+
+### 2.9 Multi-Modal Feature Fusion
+
+### Intermediate Fusion Strategy
+
+To leverage complementary information from multiple acoustic representations, the system employs an **intermediate fusion approach** that combines features at the feature level before classification.
+
+### Fusion Architecture
+
+**Stage 1: Independent Feature Extraction**
+
+Each acoustic representation is computed separately, preserving unique spectro-temporal properties:
+- Mel-spectrogram captures perceptual characteristics
+- LFCC emphasizes high-frequency artifacts
+- CQT reveals harmonic structures
+
+**Stage 2: Temporal Alignment**
+
+Features are synchronized along the time dimension to ensure consistent temporal correspondence across all modalities. This may involve:
+- Resampling to common temporal resolution
+- Padding or truncating to match sequence lengths
+- Ensuring consistent hop lengths and window sizes
+
+**Stage 3: Channel-wise Concatenation**
+
+Aligned features are concatenated along the channel dimension:
+
+$$\mathbf{F}_{\text{fused}} = [\mathbf{F}_{\text{mel}}, \mathbf{F}_{\text{lfcc}}, \mathbf{F}_{\text{cqt}}]$$
+
+Creating a unified tensor with dimensions $[C_1 + C_2 + C_3, F, T]$ where:
+- $C_i$: Number of channels for feature type $i$
+- $F$: Frequency dimension
+- $T$: Time dimension
+
+### Advantages of Intermediate Fusion
+
+**Complementary Information:** Different features capture different aspects of audio:
+- Mel-spectrogram: Broad spectral patterns and perceptual features
+- LFCC: High-frequency artifacts and anti-spoofing cues
+- CQT: Harmonic structures and pitch-related information
+
+**Cross-Modal Learning:** The CNN can learn complex inter-modal relationships and dependencies during training, discovering patterns that emerge only when features are jointly analyzed.
+
+**Richer Representation Space:** The concatenated representation provides a more comprehensive input that combines perceptual, cepstral, and constant-Q domains, potentially capturing artifacts subtle or absent in individual feature spaces.
+ 
+ 
 
 ## 3. Data Augmentation
 
