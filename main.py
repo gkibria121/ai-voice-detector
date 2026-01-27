@@ -47,6 +47,7 @@ warnings.filterwarnings("ignore", message=".*Not enough SMs to use max_autotune_
 # PyTorch 2.x optimizations - Use new API for TF32 control (PyTorch 2.9+)
 # Track TF32 status for printing later
 TF32_ENABLED = False
+EVAL_OUTPUT_DEFAULT = "./exp_result"
 # Prefer the new PyTorch 2.9+ API for TF32 control. If present, set it and
 # ensure any legacy "allow_tf32" flags (if present) mirror the new setting
 # to avoid mixing new and legacy APIs which causes runtime errors in
@@ -300,7 +301,7 @@ def main(args: argparse.Namespace) -> None:
         model_tag = model_tag + "_{}".format(args.comment)
     model_tag = output_dir / model_tag
     model_save_path = model_tag / "weights"
-    eval_score_path = model_tag / config["eval_output"]
+    eval_score_path = model_tag / config.get("eval_output", EVAL_OUTPUT_DEFAULT)
     writer = SummaryWriter(model_tag)
     os.makedirs(model_save_path, exist_ok=True)
     copy(args.config, model_tag / "config.conf")
