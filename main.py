@@ -301,7 +301,7 @@ def main(args: argparse.Namespace) -> None:
         model_tag = model_tag + "_{}".format(args.comment)
     model_tag = output_dir / model_tag
     model_save_path = model_tag / "weights"
-    eval_score_path = model_tag / config.get("eval_output", EVAL_OUTPUT_DEFAULT)
+    eval_score_path = model_tag / config.get("eval_output", EVAL_OUTPUT_DEFAULT) 
     writer = SummaryWriter(model_tag)
     os.makedirs(model_save_path, exist_ok=True)
     copy(args.config, model_tag / "config.conf")
