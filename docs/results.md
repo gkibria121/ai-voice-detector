@@ -89,14 +89,14 @@ This document presents the **Evaluation** set results for various deep learning 
 
 | Metric   | Value  |
 | -------- | ------ |
-| Accuracy | 96.97% |
-| ROC AUC  | 0.9944 |
-| EER      | 3.12%  |
+| Accuracy | 89.43% |
+| ROC AUC  |  0.9668 |
+| EER      | 10.6618%|
 
 | Class         | Precision | Recall | F1-Score |
 | ------------- | --------- | ------ | -------- |
-| Fake/Spoof    | 0.9705    | 0.9688 | 0.9696   |
-| Real/Bonafide | 0.9688    | 0.9706 | 0.9697   |
+| Fake/Spoof    |   0.8950  | 0.8934 | 0.8942   |
+| Real/Bonafide |  0.8936   | 0.8952 | 0.8944   |
 
 <p float="left" align="center">
   <img src="images/results_5_9.png" width="45%" title="Confusion Matrix (Eval)" />
