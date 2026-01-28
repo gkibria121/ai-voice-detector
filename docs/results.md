@@ -87,16 +87,16 @@ This document presents the **Evaluation** set results for various deep learning 
 
 #### Evaluation Set Metrics
 
-| Metric   | Value  |
-| -------- | ------ |
-| Accuracy | 89.43% |
-| ROC AUC  |  0.9668 |
-| EER      | 10.6618%|
+| Metric   | Value    |
+| -------- | -------- |
+| Accuracy | 89.43%   |
+| ROC AUC  | 0.9668   |
+| EER      | 10.6618% |
 
 | Class         | Precision | Recall | F1-Score |
 | ------------- | --------- | ------ | -------- |
-| Fake/Spoof    |   0.8950  | 0.8934 | 0.8942   |
-| Real/Bonafide |  0.8936   | 0.8952 | 0.8944   |
+| Fake/Spoof    | 0.8950    | 0.8934 | 0.8942   |
+| Real/Bonafide | 0.8936    | 0.8952 | 0.8944   |
 
 <p float="left" align="center">
   <img src="images/results_5_9.png" width="45%" title="Confusion Matrix (Eval)" />
@@ -139,14 +139,14 @@ This document presents the **Evaluation** set results for various deep learning 
 
 | Metric   | Value  |
 | -------- | ------ |
-| Accuracy | 96.78% |
-| ROC AUC  | 0.9928 |
-| EER      | 3.31%  |
+| Accuracy | 92.00% |
+| ROC AUC  | 0.9760 |
+| EER      | 8.09%  |
 
 | Class         | Precision | Recall | F1-Score |
 | ------------- | --------- | ------ | -------- |
-| Fake/Spoof    | 0.9687    | 0.9669 | 0.9678   |
-| Real/Bonafide | 0.9670    | 0.9688 | 0.9679   |
+| Fake/Spoof    | 0.9208    | 0.9191 | 0.9200   |
+| Real/Bonafide | 0.9193    | 0.9210 | 0.9201   |
 
 <p float="left" align="center">
   <img src="images/results_7_9.png" width="45%" title="Confusion Matrix (Eval)" />
@@ -568,16 +568,16 @@ This document presents the **Evaluation** set results for various deep learning 
 
 ---
 
-## Summary Table (Eval)
+## Summary Table
 
 | Model                       | Feature Type    | Eval Accuracy | Eval EER  | Eval ROC AUC |
 | --------------------------- | --------------- | ------------- | --------- | ------------ |
 | EfficientNet-B2 + Attention | Mel Spectrogram | **97.70%**    | **2.39%** | 0.9978       |
 | EfficientNet-B2 + Attention | MFCC            | 76.75%        | 23.35%    | 0.8357       |
 | EfficientNet-B2 + Attention | CQT             | 96.05%        | 3.68%     | 0.9905       |
-| EfficientNet-B2             | Mel Spectrogram | 96.97%        | 3.12%     | 0.9944       |
+| EfficientNet-B2             | Mel Spectrogram | 89.43%        | 10.66%    | 0.9668       |
 | EfficientNet-B2             | MFCC            | 72.52%        | 27.57%    | 0.8100       |
-| EfficientNet-B2             | CQT             | 96.78%        | 3.31%     | 0.9928       |
+| EfficientNet-B2             | CQT             | 92.00%        | 8.09%     | 0.9760       |
 | LCNN Large                  | Mel Spectrogram | 91.82%        | 8.27%     | 0.9771       |
 | LCNN Large                  | MFCC            | 84.01%        | 15.99%    | 0.9244       |
 | LCNN Large                  | CQT             | 94.12%        | 5.88%     | 0.9867       |
