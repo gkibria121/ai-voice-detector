@@ -64,6 +64,16 @@ This document outlines the current limitations of our AI Voice Detection system 
 
 ### 5. Technical Limitations
 
+#### Hardware Constraints
+- **Limited GPU Resources**: Development was conducted on an RTX 4050 laptop GPU with only 6GB VRAM, restricting the ability to train larger models or use bigger batch sizes.
+- **Memory Bottleneck**: Could not experiment with memory-intensive architectures (e.g., larger Vision Transformers, deeper VGG variants) due to GPU memory limitations.
+- **Training Time**: Limited hardware resulted in longer training cycles, reducing the number of experiments that could be conducted.
+
+#### Cloud Infrastructure Challenges
+- **Google Colab Disconnections**: Frequent session timeouts and disconnections during long training runs caused interruptions in the experimental workflow.
+- **Lack of Persistent Storage**: Colab's ephemeral storage led to loss of intermediate checkpoints, experiment logs, and exploratory scripts during disconnections.
+- **Development Friction**: File loss during exploration and development phases required repeated re-runs and manual backup procedures, slowing down the research iteration cycle.
+
 #### Computational Requirements
 - EfficientNet-B2 models require substantial GPU memory (~9.2M parameters).
 - No optimized variants for edge deployment (mobile, embedded systems).
