@@ -122,7 +122,7 @@ This document outlines the current limitations of our AI Voice Detection system 
 - Cross-attention mechanisms between feature modalities.
 
 **Self-Supervised Representations**
-- Integrate pre-trained audio embeddings (wav2vec 2.0, HuBERT, WavLM).
+- Integrate pre-trained audio embeddings (HuBERT, WavLM).
 - Fine-tune SSL models for deepfake detection.
 - Evaluate transfer learning from large-scale speech corpora.
 
