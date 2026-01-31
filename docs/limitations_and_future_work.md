@@ -146,6 +146,24 @@ Given the 8.27% improvement from attention mechanisms, explore:
 - Explore stacking with meta-learner for decision fusion.
 - Confidence-aware weighting based on prediction uncertainty.
 
+**Multi-Model Multi-Feature Ensemble**
+- Train diverse models, each specialized on different feature representations:
+  - EfficientNet-B2 + Attention on Mel Spectrogram
+  - LCNN on CQT
+  - VGG16 on STFT
+  - SENet on LFCC
+- Combine predictions from all model-feature pairs for robust ensemble:
+  - Each model captures unique artifacts visible in its feature domain
+  - Diversity in both architecture and feature space reduces correlated errors
+- Fusion strategies for multi-feature ensemble:
+  - Late fusion: Average/weighted voting across all model-feature predictions
+  - Learned fusion: Train a meta-classifier on concatenated model outputs
+  - Hierarchical fusion: Group by feature type, then combine groups
+- Expected benefits:
+  - Redundancy against individual model failures (as seen with LCNN on certain samples)
+  - Capture complementary information across frequency representations
+  - Improved robustness to adversarial attacks targeting specific features
+
 **VGG Architecture Investigation**
 - Despite being older, VGG16/VGG19 achieved exceptional results (99.96%) in literature.
 - Test VGG variants with modern training techniques (AdamW, cosine annealing, label smoothing).
@@ -254,6 +272,7 @@ Given the 8.27% improvement from attention mechanisms, explore:
 | **HIGH** | STFT feature implementation | Close 2.26% accuracy gap |
 | **HIGH** | Cross-dataset validation | Verify generalization |
 | **HIGH** | Ensemble optimization (fix LCNN) | Improve reliability |
+| **HIGH** | Multi-model multi-feature ensemble | Maximize detection robustness |
 | **HIGH** | VGG architecture testing | Potentially match SOTA |
 | **MEDIUM** | Adversarial robustness | Production readiness |
 | **MEDIUM** | Edge deployment optimization | Real-world applicability |
