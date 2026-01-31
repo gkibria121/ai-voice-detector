@@ -351,13 +351,18 @@ class GradCAM:
             self.gradients = grad_out[0]
             
         self.target_layer.register_forward_hook(forward_hook)
-        self.target_layer.register_backward_hook(backward_hook)
+        self.target_layer.register_full_backward_hook(backward_hook)
         
     def compute(self, x, target_class=None):
         """
         Compute Grad-CAM heatmap.
         """
         self.model.eval()
+        
+        # Reset gradients and activations from previous calls
+        self.gradients = None
+        self.activations = None
+        
         x = x.detach().to(self.device).requires_grad_(True)
         self.model.zero_grad()
         
@@ -365,11 +370,30 @@ class GradCAM:
         _, output = self.model(x)
         
         if target_class is None:
-            target_class = output.argmax(dim=1)
+            target_class = output.argmax(dim=1).item()
+        elif isinstance(target_class, torch.Tensor):
+            target_class = target_class.item()
             
         # Backward
         target = output[0, target_class]
         target.backward()
+        
+        # Check if hooks captured data
+        if self.gradients is None or self.activations is None:
+            print(f"    Warning: Gradients or activations not captured. Using activation fallback.")
+            # Fallback: just use activation magnitude
+            if self.activations is not None:
+                activations = self.activations.detach().clone()
+                if activations.ndim == 4:
+                    heatmap = torch.mean(torch.abs(activations), dim=1).squeeze()
+                elif activations.ndim == 3:
+                    heatmap = torch.mean(torch.abs(activations), dim=1).squeeze()
+                else:
+                    return None
+                if torch.max(heatmap) != 0:
+                    heatmap /= torch.max(heatmap)
+                return heatmap.cpu()
+            return None
         
         # Generate heatmap
         # GAP of gradients
@@ -377,15 +401,36 @@ class GradCAM:
         if self.gradients.ndim == 4: # (B, C, H, W)
              pooled_gradients = torch.mean(self.gradients, dim=[0, 2, 3])
         
-        # Weight activations
-        activations = self.activations.detach() # (B, C, ...)
+        # Check for zero gradients
+        if torch.max(torch.abs(pooled_gradients)) == 0:
+            print(f"    Warning: Zero gradients detected. Using activation magnitude fallback.")
+            activations = self.activations.detach().clone()
+            if activations.ndim == 4:
+                heatmap = torch.mean(torch.abs(activations), dim=1).squeeze()
+            elif activations.ndim == 3:
+                heatmap = torch.mean(torch.abs(activations), dim=1).squeeze()
+            else:
+                return None
+            if torch.max(heatmap) != 0:
+                heatmap /= torch.max(heatmap)
+            return heatmap.cpu()
+        
+        # Weight activations - clone to avoid in-place modification issues
+        activations = self.activations.detach().clone() # (B, C, ...)
         
         if activations.ndim == 4: # Spectrogram (B, C, H, W)
             for i in range(activations.shape[1]):
                 activations[:, i, :, :] *= pooled_gradients[i]
                 
             heatmap = torch.mean(activations, dim=1).squeeze()
-            heatmap = F.relu(heatmap)
+            
+            # Apply ReLU, but fall back to absolute values if all zeros
+            heatmap_relu = F.relu(heatmap)
+            if torch.max(heatmap_relu) == 0:
+                # Model may have negative gradients - use absolute values instead
+                heatmap = torch.abs(heatmap)
+            else:
+                heatmap = heatmap_relu
             
             # Normalize
             if torch.max(heatmap) != 0:
@@ -400,7 +445,13 @@ class GradCAM:
                 activations[:, i, :] *= pooled_gradients[i]
                 
             heatmap = torch.mean(activations, dim=1).squeeze()
-            heatmap = F.relu(heatmap)
+            
+            # Apply ReLU, but fall back to absolute values if all zeros
+            heatmap_relu = F.relu(heatmap)
+            if torch.max(heatmap_relu) == 0:
+                heatmap = torch.abs(heatmap)
+            else:
+                heatmap = heatmap_relu
             
             if torch.max(heatmap) != 0:
                 heatmap /= torch.max(heatmap)

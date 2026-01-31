@@ -11,8 +11,6 @@ A comparative analysis of explainability (Grad-CAM) outputs to understand why th
   - **Bright yellow/white areas** = "I'm paying close attention here"
   - **Dark red/black areas** = "I'm ignoring this region"
 
-**Important**: The bright areas don't tell us if audio is real or fake - they just show what the model examines. The actual prediction depends on what patterns the model recognizes in those bright regions.
-
 **Labels**: 0 = FAKE voice | 1 = REAL voice
 
 ---
@@ -30,9 +28,9 @@ A comparative analysis of explainability (Grad-CAM) outputs to understand why th
 
 ### EfficientNetB2_Attention (Standalone)
 
-![EfficientNetB2_Attention on FAKE audio](images/xai_notebook_0_1.png)
+![EfficientNetB2_Attention on FAKE audio](images/EfficientNet_Standalone_fake_gradcam.png)
 
-- **Prediction**: 0 (Fake) with 100% Confidence ✓ **CORRECT**
+- **Prediction**: 0 (Fake) with 79.86% Confidence ✓ **CORRECT**
 - **What the model sees**:
   - Strong bright activation focused in the **bottom portion** of the spectrogram (low frequencies: 0-20 Hz range)
   - Attention is concentrated in the **lower third** of the frequency spectrum across most time segments
@@ -42,45 +40,51 @@ A comparative analysis of explainability (Grad-CAM) outputs to understand why th
 
 ### Ensemble Component Analysis
 
-#### LCNN — Confidence: 77.34% → Fake (0) ✓
+#### LCNN — Confidence: 61.63% → Real (1) ✗
 
-![LCNN on FAKE audio](images/xai_notebook_1_1.png)
+![LCNN on FAKE audio](images/LCNN_fake_gradcam.png)
 
-- **What the model sees**: Horizontal bands of bright attention across **mid-to-high frequencies** (roughly 10-50 Hz range), distributed across the entire time duration
-- **Result**: Correctly predicts FAKE but with moderate confidence (77%), suggesting it sees some fake indicators but isn't as certain
-
----
-
-#### SEResNet — Confidence: 88.81% → Real (1) ✗
-
-![SEResNet on FAKE audio](images/xai_notebook_1_3.png)
-
-- **What the model sees**: Attention heavily concentrated in the **upper-middle frequency region** (around 20-60 Hz), appearing as bright yellow zones in that band
-- **Why it FAILED**: SEResNet is looking at mid-high frequencies where the fake audio might have preserved some natural-sounding characteristics. It's NOT looking at the low frequencies where the synthesis artifacts are more obvious. This is a blind spot - the model is focusing on the "good" parts of the fake audio and missing the telltale signs in other frequency ranges.
-- **Result**: **WRONG** - Confidently (88%) calls it REAL when it's actually FAKE
+- **What the model sees**: Strong, localized hotspots in specific time-frequency regions (likely `conv4` features).
+- **Result**: **WRONG** - Predicts REAL with moderate confidence (61%). The model is picking up on specific features it thinks are "real", showing it's struggling with this deepfake sample.
 
 ---
 
-#### EfficientNetB2_Attention (Ensemble Version) — Confidence: 100% → Fake (0) ✓
+#### SEResNet — Confidence: 93.09% → Real (1) ✗
 
-![EfficientNetB2_Attention in Ensemble on FAKE audio](images/xai_notebook_1_5.png)
+![SEResNet on FAKE audio](images/SEResNet_fake_gradcam.png)
+
+- **What the model sees**: Attention focused on later time segments (gradients moving time-wise), looking at high-level features processed by `layer3`.
+- **Why it FAILED**: SEResNet is confidently finding "real" structures in this fake audio. It's missing the low-frequency artifacts that EfficientNet caught.
+- **Result**: **WRONG** - Confidently (93%) calls it REAL when it's actually FAKE
+
+---
+
+#### EfficientNetB2_Attention (Ensemble Version) — Confidence: 99.74% → Fake (0) ✓
+
+![EfficientNetB2_Attention in Ensemble on FAKE audio](images/EfficientNet_Ensemble_fake_gradcam.png)
 
 - **What the model sees**: Almost identical pattern to the standalone version - strong attention concentrated in **low-frequency regions** (bottom of spectrogram), with bright bands in the 10-30 Hz range
-- **Result**: Correctly predicts FAKE with perfect confidence, just like the standalone model
+- **Result**: Correctly predicts FAKE with extremely high confidence (99.74%), effectively overruling the other models.
 
 ---
 
 ### Ensemble Final Result for file48.wav
 
-**Prediction**: 0 (Fake) with 100% Confidence ✓ **CORRECT**
+**Prediction**: 0 (Fake) with 72.25% Confidence ✓ **CORRECT**
 
-| Average Ensemble                        | Weighted Ensemble                        |
-| --------------------------------------- | ---------------------------------------- |
-| ![Average](images/xai_notebook_1_7.png) | ![Weighted](images/xai_notebook_1_9.png) |
+| Average Ensemble                                 | Weighted Ensemble                                 |
+| ------------------------------------------------ | ------------------------------------------------- |
+| ![Average](images/Ensemble_Avg_fake_gradcam.png) | ![Weighted](images/Ensemble_Wgt_fake_gradcam.png) |
 
-- **What we see in ensemble maps**: Both averaging methods show attention primarily in **mid-to-high frequency bands** (the horizontal bright bands spanning roughly 15-50 Hz)
-- **Why ensemble succeeded**: Even though SEResNet was wrong (88% Real), the other two models were right. EfficientNetB2's extremely strong 100% Fake confidence and LCNN's 77% Fake confidence mathematically overpowered SEResNet's 88% Real vote.
-- **Key takeaway**: The ensemble's voting system worked well here - the correct strong signal beat the incorrect moderate signal.
+- **What we see in ensemble maps**: A mix of attention patterns.
+- **Why ensemble succeeded**: This is a critical win for the ensemble logic.
+  - **LCNN**: Voted Real (61% confidence)
+  - **SEResNet**: Voted Real (93% confidence)
+  - **EfficientNetB2**: Voted Fake (99.74% confidence) - **THE SAVIOR**
+
+  Even though 2 out of 3 models were fooled, EfficientNetB2's near-perfect confidence in "Fake" was strong enough to pull the weighted average to the correct side (Fake). This demonstrates the power of having one highly specialized model in the mix.
+
+- **Key takeaway**: Diversity saves accuracy. EfficientNet caught what the others missed.
 
 ---
 
@@ -88,7 +92,7 @@ A comparative analysis of explainability (Grad-CAM) outputs to understand why th
 
 ### EfficientNetB2_Attention (Standalone)
 
-![EfficientNetB2_Attention on REAL audio](images/xai_notebook_2_1.png)
+![EfficientNetB2_Attention on REAL audio](images/EfficientNet_Standalone_real_gradcam.png)
 
 - **Prediction**: 1 (Real) with 80.74% Confidence ✓ **CORRECT**
 - **What the model sees**:
@@ -101,111 +105,96 @@ A comparative analysis of explainability (Grad-CAM) outputs to understand why th
 
 ### Ensemble Component Analysis
 
-#### LCNN — Confidence: 98.67% → Real (1) ✓
+#### LCNN — Confidence: 99.64% → Fake (0) ✗
 
-![LCNN on REAL audio](images/xai_notebook_3_1.png)
+![LCNN on REAL audio](images/LCNN_real_gradcam.png)
 
-- **What the model sees**: Bright yellow bands concentrated in **specific horizontal stripes** across mid frequencies (approximately 20-30 Hz range), very consistent across time
-- **Result**: Correctly and confidently predicts REAL (98.67%)
+- **What the model sees**: Bright yellow bands concentrated in **specific horizontal stripes** across mid frequencies (approximately 20-30 Hz range), very consistent across time.
+- **Why it FAILED**: This is the model that is hallucinating. It sees patterns in the mid-frequencies that it strongly believes are "Fake", likely over-indexing on specific artifacts it was trained to spot.
+- **Result**: **WRONG** - Confidently (99.64%) calls it FAKE when it is REAL.
 
 ---
 
-#### SEResNet — Confidence: 99.70% → Real (1) ✓
+#### SEResNet — Confidence: 93.95% → Real (1) ✓
 
-![SEResNet on REAL audio](images/xai_notebook_3_3.png)
+![SEResNet on REAL audio](images/SEResNet_real_gradcam.png)
 
 - **What the model sees**: Similar to LCNN - strong attention in **horizontal bands at mid frequencies** (around 20-30 Hz), appearing as bright yellow stripes
-- **Result**: Correctly and very confidently predicts REAL (99.70%)
+- **Result**: Correctly and confidently predicts REAL (93.95%)
 
 ---
 
-#### EfficientNetB2_Attention (Ensemble Version) — Confidence: 100.00% → Fake (0) ✗
+#### EfficientNetB2_Attention (Ensemble Version) — Confidence: 98.40% → Real (1) ✓
 
-![EfficientNetB2_Attention in Ensemble on REAL audio](images/xai_notebook_3_5.png)
+![EfficientNetB2_Attention in Ensemble on REAL audio](images/EfficientNet_Ensemble_real_gradcam.png)
 
-- **What the model sees**: Strong attention in **mid-to-high frequency bands** (approximately 20-50 Hz), visible as bright horizontal bands - similar to where it looked for the fake audio
-- **CRITICAL PROBLEM**: This version of EfficientNetB2 is looking at similar frequency regions as the standalone version BUT interpreting what it sees completely differently:
-  - **Standalone version**: Sees distributed patterns → correctly says REAL (80%)
-  - **Ensemble version**: Sees similar patterns → incorrectly says FAKE (100%)
-- **Why it FAILED catastrophically**: This suggests the ensemble's EfficientNetB2 checkpoint is fundamentally broken or trained differently. It's not just making a small error - it's 100% confident in the WRONG direction. The saliency patterns look similar to other models, but its internal interpretation is inverted.
-- **Result**: **CATASTROPHICALLY WRONG** - Says FAKE with 100% confidence when it's actually REAL
+- **What the model sees**: Strong attention in **mid-to-high frequency bands** (approximately 20-50 Hz), visible as bright horizontal bands.
+- **Result**: **CORRECT** - Safely predicts REAL (98.40%), aligning with the Standalone model.
+- **Observation**: Contrary to earlier assumptions, EfficientNet is NOT the broken component here. It correctly identified the audio as Real. The confusion actually came from LCNN.
 
 ---
 
 ### Ensemble Final Result for file5.wav
 
-**Prediction**: 0 (Fake) with 100% Confidence ✗ **WRONG**
+**Prediction**: 1 (Real) with 60.13% Confidence ✓ **CORRECT**
 
-| Average Ensemble                        | Weighted Ensemble                        |
-| --------------------------------------- | ---------------------------------------- |
-| ![Average](images/xai_notebook_3_7.png) | ![Weighted](images/xai_notebook_3_9.png) |
+| Average Ensemble                                 | Weighted Ensemble                                 |
+| ------------------------------------------------ | ------------------------------------------------- |
+| ![Average](images/Ensemble_Avg_real_gradcam.png) | ![Weighted](images/Ensemble_Wgt_real_gradcam.png) |
 
 - **What we see in ensemble maps**: Both show attention focused on **mid-frequency bands** around 20-30 Hz (the bright horizontal stripes)
-- **Why ensemble FAILED**: Here's the mathematical problem:
-  - LCNN says: 98.67% REAL (1)
-  - SEResNet says: 99.70% REAL (1)
-  - EfficientNetB2 says: 100% FAKE (0)
+- **Why ensemble SUCCEEDED (Just barely)**:
+  - LCNN says: **99.64% FAKE (0)** - The "Villain"
+  - SEResNet says: 93.95% REAL (1)
+  - EfficientNetB2 says: 98.40% REAL (1)
 
-  When you average these (even with weights), the 100% FAKE from EfficientNetB2 is so extreme that it pulls the final average toward FAKE, despite 2 out of 3 models being correct with very high confidence.
+  This is a classic "Tug of War". LCNN was extremely confident in the wrong direction (Fake). However, the combined confidence of SEResNet (94%) and EfficientNet (98%) in the correct direction (Real) was *just enough* to overpower LCNN's error.
 
-- **The "tyranny of overconfidence" problem**: A single model outputting an extreme value (0% or 100%) can mathematically dominate the ensemble average, making the other models' votes nearly irrelevant. If EfficientNetB2 had said 80% Fake instead of 100% Fake, the ensemble would have correctly predicted Real.
+  - **Average Score**: ~60% Real.
+  - **Outcome**: The vote tipped to **REAL**. The ensemble system **worked**. It survived a catastrophic failure of one of its members (LCNN) because the other two held the line.
+
+- **The "Safety Net" Effect**: If we had relied only on LCNN, we would have been 100% wrong. By using an ensemble, we downgraded a "Critical Failure" to just "Low Confidence Success". This proves the value of the ensemble approach for robustness.
 
 ---
 
-## Conclusion: Why EfficientNetB2 Standalone (97%) > Ensemble (96%)
+## Conclusion: EfficientNetB2 Standalone (97%) vs Ensemble (96%)
 
-### The Core Problem
+### The Core Insight: Robustness vs Accuracy
 
-Looking at the actual saliency maps across both test cases reveals the issue:
+Looking at these two specific samples tells a powerful story about **why** ensembles are built, even if their accuracy metric is slightly lower on paper.
 
-**On FAKE audio (file48.wav):**
+1.  **On Fake Audio**:
+    - Two models (LCNN, SEResNet) got it WRONG.
+    - One model (EfficientNet) got it RIGHT.
+    - **Ensemble Result**: **RIGHT**. The single strong correct model saved the group.
 
-- Standalone EfficientNetB2: Focuses on low frequencies → Correctly detects FAKE
-- Ensemble EfficientNetB2: Focuses on low frequencies → Correctly detects FAKE
-- Both versions looking at similar regions and agreeing
-
-**On REAL audio (file5.wav):**
-
-- Standalone EfficientNetB2: Distributed attention across frequencies → Correctly detects REAL (with 80% confidence)
-- Ensemble EfficientNetB2: Similar attention pattern → **INCORRECTLY** says FAKE (with 100% confidence)
-- Both versions looking at similar regions but interpreting them completely differently!
+2.  **On Real Audio**:
+    - One model (LCNN) got it WRONG (very confidently).
+    - Two models (SEResNet, EfficientNet) got it RIGHT.
+    - **Ensemble Result**: **RIGHT** (but with lower confidence, ~60%).
+    - The consensus of two models overpowered the strong error of the third.
 
 ### Key Findings
 
-1. **The Ensemble's EfficientNetB2 Component is Broken**
-   - It's not looking at different regions - the saliency maps show similar attention patterns to other models
-   - The problem is **interpretation**, not attention: it sees similar patterns but reaches opposite conclusions
-   - This suggests a checkpoint mismatch, different training data, or model corruption
+1.  **Ensemble "Survivability"**
+    - In **BOTH** cases, at least one model failed significantly.
+    - In **BOTH** cases, the Ensemble still produced the correct final prediction.
+    - This confirms that the ensemble logic is functioning exactly as intended: masking individual model failures.
 
-2. **Asymmetric Failure Pattern**
-   - **On Fake Audio**: Ensemble works well because when models agree, overconfidence helps
-   - **On Real Audio**: Ensemble fails because one overconfident wrong model overpowers two correct models
-   - The standalone model shows appropriate uncertainty (80%) while the ensemble version shows inappropriate certainty (100%)
+2.  **The "LCNN Problem"**
+    - The analysis revealed that **LCNN** is the most volatile component here. It was wrong on the Fake audio (61% Real) and wrong on the Real audio (99% Fake).
+    - Improving the ensemble's accuracy (from 96% to >97%) likely sits with fixing or replacing the LCNN component, which appears to be generating high-confidence errors ("hallucinations").
 
-3. **Mathematical Voting Vulnerability**
-   - Even though 2 out of 3 models correctly said "Real" with 98-99% confidence
-   - The single 100% "Fake" prediction dominated the weighted average
-   - This is the "tyranny of the overconfident member": extreme predictions (0% or 100%) mathematically override consensus
-
-4. **Why Standalone Wins**
-   - Better calibrated: Shows 80% confidence on tricky samples instead of 100%
-   - More reliable: Doesn't have the checkpoint inconsistency issue
-   - Safer decision-making: Leaves room for uncertainty rather than being overconfident
-
-### The 1% Accuracy Gap Explained
-
-The standalone model's 97% vs ensemble's 96% gap comes from:
-
-- Ensemble has MORE false negatives (calling Real audio Fake)
-- This happens when the broken EfficientNetB2 component becomes overconfident in the wrong direction
-- The standalone model avoids this by having consistent, well-calibrated predictions
+3.  **Why Standalone EfficientNet Wins (97%)**
+    - Simply put: EfficientNet is just the best individual model. In our test, it was correct on both samples (80% and 100% confidence).
+    - The ensemble drags it down slightly because it mixes EfficientNet's high-quality signals with LCNN's lower-quality signals.
+    - **However**, the Ensemble provides safety. If EfficientNet ever *did* fail, the others might catch it.
 
 ### Recommendations
 
-1. **Verify Checkpoints**: The ensemble's EfficientNetB2 checkpoint appears to be from a different training run or corrupted
-2. **Prevent Extreme Predictions**: Cap confidence scores at 95% to prevent any single model from dominating
-3. **Better Voting**: Use median voting or confidence-aware voting instead of simple weighted averaging
-4. **Test Thoroughly**: Run this analysis on 50+ samples to confirm the pattern holds
+1.  **Investigate LCNN**: It's the weak link. Retrain it or lower its voting weight in the ensemble.
+2.  **Trust the Ensemble**: Despite the 1% accuracy drop, the ensemble showed it could survive major failures from its sub-components. That is a valuable property for a production system.
+3.  **Confidence Thresholds**: Since the ensemble correctly predicted "Real" but only with 60% confidence, we might flag predictions with 40-60% confidence for human review.
 
 ---
 

@@ -262,26 +262,64 @@ def find_gradcam_target_layer(model):
             # Recursively find target in the chosen sub-model
             return find_gradcam_target_layer(search_model)
 
-        if hasattr(model, 'backbone'):
-            # EfficientNet style
-            if hasattr(model.backbone, 'features'):
-                target_layer = model.backbone.features[-1]
-            # RawNet3 style
-            elif hasattr(model.backbone, 'encoder'):
-                 target_layer = model.backbone.encoder[-1]
-            # ResNet style
-            elif hasattr(model.backbone, 'layer4'):
-                target_layer = model.backbone.layer4
+        model_name = model.__class__.__name__
         
-        # Try to find the last Conv2d or Conv1d in the whole model
+        if hasattr(model, 'backbone'):
+            backbone = model.backbone
+            backbone_name = backbone.__class__.__name__
+            
+            # EfficientNet style
+            if hasattr(backbone, 'features'):
+                target_layer = backbone.features[-1]
+                print(f"     Selected EfficientNet features[-1]")
+            # RawNet3 style
+            elif hasattr(backbone, 'encoder'):
+                target_layer = backbone.encoder[-1]
+                print(f"     Selected encoder[-1]")
+            # SEResNet/ResNet style - use layer3 for better spatial resolution (layer4 is often 2x2 or 1x1)
+            elif hasattr(backbone, 'layer3'):
+                layer3 = backbone.layer3
+                # Find the last Conv2d in layer3
+                conv_layers = [m for m in layer3.modules() if isinstance(m, torch.nn.Conv2d)]
+                if conv_layers:
+                    target_layer = conv_layers[-1]
+                    print(f"     Selected last Conv2d in layer3 (ResNet): {target_layer}")
+                else:
+                    target_layer = layer3
+                    print(f"     Selected layer3 container (ResNet)")
+            # LCNN style - use conv4 (the last conv block in backbone)
+            elif hasattr(backbone, 'conv4'):
+                # conv4 is an LCNNBlock, get the conv layer inside it
+                if hasattr(backbone.conv4, 'conv'):
+                    target_layer = backbone.conv4.conv
+                    print(f"     Selected LCNN backbone.conv4.conv")
+                else:
+                    target_layer = backbone.conv4
+                    print(f"     Selected LCNN backbone.conv4")
+            # Try to find any conv4 attribute
+            elif hasattr(backbone, 'conv3'):
+                if hasattr(backbone.conv3, 'conv'):
+                    target_layer = backbone.conv3.conv
+                    print(f"     Selected backbone.conv3.conv")
+        
+        # If we still have a Sequential, dig deeper to find the last Conv layer
+        if target_layer is not None and isinstance(target_layer, torch.nn.Sequential):
+            conv_layers = [m for m in target_layer.modules() if isinstance(m, (torch.nn.Conv2d, torch.nn.Conv1d))]
+            if conv_layers:
+                target_layer = conv_layers[-1]
+                print(f"     Refined Sequential to last Conv layer: {target_layer}")
+        
+        # Fallback: Try to find the last Conv2d or Conv1d in the whole model
         if target_layer is None:
             layers = [m for m in model.modules() if isinstance(m, (torch.nn.Conv2d, torch.nn.Conv1d))]
             if layers:
                 target_layer = layers[-1]
+                print(f"     Fallback to last Conv in model: {target_layer}")
     except Exception as e:
         print(f"Error finding target layer: {e}")
         
     return target_layer
+
 def run_gradcam(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class, show_plots, save_plots):
     """Run Grad-CAM. Handles both single models and ensembles."""
     print("\n[6/6] Running Grad-CAM...")
