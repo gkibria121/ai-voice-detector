@@ -44,7 +44,7 @@ A comparative analysis of explainability (Grad-CAM) outputs to understand why th
 
 ![LCNN on FAKE audio](images/LCNN_fake_gradcam.png)
 
-- **What the model sees**: Strong, localized hotspots in specific time-frequency regions (likely `conv4` features).
+- **What the model sees**: Strong, localized hotspots in specific time-frequency regions.
 - **Result**: **WRONG** - Predicts REAL with moderate confidence (61%). The model is picking up on specific features it thinks are "real", showing it's struggling with this deepfake sample.
 
 ---
@@ -148,8 +148,7 @@ A comparative analysis of explainability (Grad-CAM) outputs to understand why th
   - SEResNet says: 93.95% REAL (1)
   - EfficientNetB2 says: 98.40% REAL (1)
 
-  This is a classic "Tug of War". LCNN was extremely confident in the wrong direction (Fake). However, the combined confidence of SEResNet (94%) and EfficientNet (98%) in the correct direction (Real) was *just enough* to overpower LCNN's error.
-
+  This is a classic "Tug of War". LCNN was extremely confident in the wrong direction (Fake). However, the combined confidence of SEResNet (94%) and EfficientNet (98%) in the correct direction (Real) was _just enough_ to overpower LCNN's error.
   - **Average Score**: ~60% Real.
   - **Outcome**: The vote tipped to **REAL**. The ensemble system **worked**. It survived a catastrophic failure of one of its members (LCNN) because the other two held the line.
 
@@ -188,7 +187,7 @@ Looking at these two specific samples tells a powerful story about **why** ensem
 3.  **Why Standalone EfficientNet Wins (97%)**
     - Simply put: EfficientNet is just the best individual model. In our test, it was correct on both samples (80% and 100% confidence).
     - The ensemble drags it down slightly because it mixes EfficientNet's high-quality signals with LCNN's lower-quality signals.
-    - **However**, the Ensemble provides safety. If EfficientNet ever *did* fail, the others might catch it.
+    - **However**, the Ensemble provides safety. If EfficientNet ever _did_ fail, the others might catch it.
 
 ### Recommendations
 
