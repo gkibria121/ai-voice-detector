@@ -1,6 +1,6 @@
 # XAI Analysis: EfficientNetB2_Attention vs Ensemble
 
-A comparative analysis of explainability (Grad-CAM) outputs to understand why the **EfficientNetB2_Attention** standalone model (97% accuracy) outperforms the **Ensemble** model (96% accuracy).
+A comparative analysis of explainability (Grad-CAM) outputs to understand why the **EfficientNetB2_Attention** standalone model (97.70% accuracy) outperforms the **Ensemble** model (96.05% accuracy).
 
 ## Understanding This Analysis
 
@@ -156,7 +156,7 @@ A comparative analysis of explainability (Grad-CAM) outputs to understand why th
 
 ---
 
-## Conclusion: EfficientNetB2 Standalone (97%) vs Ensemble (96%)
+## Conclusion: EfficientNetB2 Standalone (97.70%) vs Ensemble (96.05%)
 
 ### The Core Insight: Robustness vs Accuracy
 
@@ -182,9 +182,9 @@ Looking at these two specific samples tells a powerful story about **why** ensem
 
 2.  **The "LCNN Problem"**
     - The analysis revealed that **LCNN** is the most volatile component here. It was wrong on the Fake audio (61% Real) and wrong on the Real audio (99% Fake).
-    - Improving the ensemble's accuracy (from 96% to >97%) likely sits with fixing or replacing the LCNN component, which appears to be generating high-confidence errors ("hallucinations").
+    - Improving the ensemble's accuracy (from 96.05% to >97.70%) likely sits with fixing or replacing the LCNN component, which appears to be generating high-confidence errors ("hallucinations").
 
-3.  **Why Standalone EfficientNet Wins (97%)**
+3.  **Why Standalone EfficientNet Wins (97.70%)**
     - Simply put: EfficientNet is just the best individual model. In our test, it was correct on both samples (80% and 100% confidence).
     - The ensemble drags it down slightly because it mixes EfficientNet's high-quality signals with LCNN's lower-quality signals.
     - **However**, the Ensemble provides safety. If EfficientNet ever _did_ fail, the others might catch it.
