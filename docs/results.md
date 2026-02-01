@@ -570,27 +570,82 @@ This document presents the **Evaluation** set results for various deep learning 
 
 ## Summary Table
 
-| Model                       | Feature Type    | Eval Accuracy | Eval EER  | Eval ROC AUC |
-| --------------------------- | --------------- | ------------- | --------- | ------------ |
-| EfficientNet-B2 + Attention | Mel Spectrogram | **97.70%**    | **2.39%** | 0.9978       |
-| EfficientNet-B2 + Attention | MFCC            | 76.75%        | 23.35%    | 0.8357       |
-| EfficientNet-B2 + Attention | CQT             | 96.05%        | 3.68%     | 0.9905       |
-| EfficientNet-B2             | Mel Spectrogram | 89.43%        | 10.66%    | 0.9668       |
-| EfficientNet-B2             | MFCC            | 72.52%        | 27.57%    | 0.8100       |
-| EfficientNet-B2             | CQT             | 92.00%        | 8.09%     | 0.9760       |
-| LCNN Large                  | Mel Spectrogram | 91.82%        | 8.27%     | 0.9771       |
-| LCNN Large                  | MFCC            | 84.01%        | 15.99%    | 0.9244       |
-| LCNN Large                  | CQT             | 94.12%        | 5.88%     | 0.9867       |
-| LCNN                        | Mel Spectrogram | 92.56%        | 7.44%     | 0.9791       |
-| LCNN                        | MFCC            | 91.08%        | 8.82%     | 0.9653       |
-| LCNN                        | CQT             | 95.50%        | 4.78%     | 0.9903       |
-| SEResNet                    | Mel Spectrogram | 89.43%        | 10.66%    | 0.9674       |
-| SEResNet                    | MFCC            | 92.00%        | 8.09%     | 0.9750       |
-| SEResNet                    | CQT             | 93.20%        | 6.80%     | 0.9815       |
-| SENet                       | Mel Spectrogram | 89.71%        | 10.29%    | 0.9655       |
-| SENet                       | MFCC            | 92.37%        | 7.72%     | 0.9750       |
-| SENet                       | CQT             | 93.20%        | 6.80%     | 0.9802       |
-| RawNet3                     | Raw Waveform    | 78.12%        | 21.88%    | 0.8729       |
-| SimpleCNN                   | Raw Waveform    | 64.52%        | 35.66%    | 0.6868       |
+# AI Voice Detection - Experiment Results
+
+## Feature Type Legend
+
+| Feature Type | Name                  | Description                            |
+| ------------ | --------------------- | -------------------------------------- |
+| 0            | Raw Audio             | Raw waveform input                     |
+| 1            | Mel Spectrogram       | Log-mel spectrogram features           |
+| 2            | LFCC                  | Linear Frequency Cepstral Coefficients |
+| 4            | CQT                   | Constant-Q Transform                   |
+| 5            | Chroma                | Chromagram features                    |
+| 6            | Spectral Contrast     | Spectral contrast features             |
+| 1,2,4        | Fusion (Mel+LFCC+CQT) | Multi-feature fusion                   |
+
+---
+
+## Single-Feature Results
+
+| Model                    | Feature Type | Feature Name      | Epochs | Dev EER (%) | Dev Accuracy (%) | Eval EER (%) | Eval ROC AUC | Eval Accuracy (%) |
+| ------------------------ | ------------ | ----------------- | ------ | ----------- | ---------------- | ------------ | ------------ | ----------------- |
+| EfficientNetB2 Attention | 1            | Mel Spectrogram   | 20     | 0.0         | 99.96            | 2.3897       | 0.9978       | 97.70             |
+| EfficientNetB2 Attention | 2            | LFCC              | 20     | 0.1415      | 99.82            | 23.3456      | 0.8357       | 76.75             |
+| EfficientNetB2 Attention | 4            | CQT               | 20     | 0.2123      | 99.82            | 3.6765       | 0.9905       | 96.05             |
+| EfficientNetB2 Attention | 5            | Chroma            | 20     | 4.3878      | 95.65            | 18.1985      | 0.8956       | 81.89             |
+| EfficientNetB2 Attention | 6            | Spectral Contrast | 20     | 2.4062      | 97.63            | 37.1324      | 0.6773       | 62.96             |
+| EfficientNetB2           | 1            | Mel Spectrogram   | 20     | 0.0         | 99.96            | 3.125        | 0.9944       | 96.97             |
+| EfficientNetB2           | 2            | LFCC              | 20     | 0.4246      | 99.61            | 27.5735      | 0.8100       | 72.52             |
+| EfficientNetB2           | 4            | CQT               | 20     | 0.2123      | 99.82            | 3.3088       | 0.9928       | 96.78             |
+| LCNN Large               | 1            | Mel Spectrogram   | 20     | 0.0708      | 99.89            | 8.2721       | 0.9771       | 91.82             |
+| LCNN Large               | 2            | LFCC              | 20     | 0.2831      | 99.75            | 5.1471       | 0.9890       | 94.94             |
+| LCNN Large               | 4            | CQT               | 20     | 0.3539      | 99.61            | 3.8603       | 0.9907       | 95.50             |
+| LCNN                     | 1            | Mel Spectrogram   | 20     | 0.0708      | 99.89            | 4.7794       | 0.9913       | 95.31             |
+| LCNN                     | 2            | LFCC              | 20     | 0.2831      | 99.68            | 8.8235       | 0.9653       | 91.08             |
+| LCNN                     | 4            | CQT               | 20     | 0.2831      | 99.75            | 4.7794       | 0.9903       | 95.50             |
+| SEResNet                 | 1            | Mel Spectrogram   | 20     | 0.0708      | 99.89            | 10.6618      | 0.9674       | 89.43             |
+| SEResNet                 | 2            | LFCC              | 20     | 0.1415      | 99.82            | 8.0882       | 0.9750       | 92.00             |
+| SEResNet                 | 4            | CQT               | 20     | 0.2831      | 99.68            | 3.8603       | 0.9908       | 96.05             |
+| RawNet3                  | 0            | Raw Audio         | 15     | 1.6277      | 98.41            | 21.8750      | 0.8729       | 78.12             |
+| SimpleCNN                | 0            | Raw Audio         | 25     | 4.1047      | 95.93            | 35.6618      | 0.6868       | 64.52             |
+
+---
+
+## Feature Fusion Results
+
+| Model                    | Feature Type | Feature Name          | Epochs | Dev EER (%) | Dev Accuracy (%) | Eval EER (%) | Eval ROC AUC | Eval Accuracy (%) |
+| ------------------------ | ------------ | --------------------- | ------ | ----------- | ---------------- | ------------ | ------------ | ----------------- |
+| EfficientNetB2 Attention | 1,2,4        | Fusion (Mel+LFCC+CQT) | 20     | 0.0708      | 99.89            | 5.3309       | 0.9911       | 94.58             |
+| EfficientNetB2           | 1,2,4        | Fusion (Mel+LFCC+CQT) | 20     | 0.0708      | 99.96            | 5.8824       | 0.9864       | 94.03             |
+| SEResNet                 | 1,2,4        | Fusion (Mel+LFCC+CQT) | 20     | 0.2831      | 99.68            | 6.2500       | 0.9821       | 92.74             |
+
+---
+
+## Ensemble Results
+
+| Model                                   | Feature Type | Feature Name    | Epochs | Dev EER (%) | Dev Accuracy (%) | Eval EER (%) | Eval ROC AUC | Eval Accuracy (%) |
+| --------------------------------------- | ------------ | --------------- | ------ | ----------- | ---------------- | ------------ | ------------ | ----------------- |
+| Ensemble (EfficientNetB2+SEResNet+LCNN) | 1            | Mel Spectrogram | 20     | 0.0708      | 99.89            | 4.0441       | 0.9944       | 96.05             |
+
+---
+
+## Key Observations
+
+### Best Performers (by Eval Accuracy):
+
+1. **EfficientNetB2 Attention + Mel (feat 1)**: 97.70% accuracy, 2.39% EER
+2. **EfficientNetB2 + Mel (feat 1)**: 96.97% accuracy, 3.12% EER
+3. **EfficientNetB2 + CQT (feat 4)**: 96.78% accuracy, 3.31% EER
+4. **EfficientNetB2 Attention + CQT (feat 4)**: 96.05% accuracy, 3.68% EER
+5. **Ensemble + Mel (feat 1)**: 96.05% accuracy, 4.04% EER
+
+### Feature Performance Summary:
+
+- **Mel Spectrogram (1)**: Best overall performance across most models
+- **CQT (4)**: Second best, consistent performance
+- **LFCC (2)**: Poor generalization to eval set despite good dev performance
+- **Chroma (5) & Spectral Contrast (6)**: Experimental features with limited success
+- **Raw Audio (0)**: Significant overfitting issues
 
 **Best performing model:** EfficientNet-B2 with Attention using Mel Spectrogram features achieved the highest evaluation accuracy (97.70%) and lowest EER (2.39%).
