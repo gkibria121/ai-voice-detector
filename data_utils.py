@@ -22,7 +22,10 @@ FEATURE_TYPES = {
     3: "mfcc",
     4: "cqt",  # Constant-Q Transform - best for fake vs real audio
     5: "chroma",  # Chroma feature (pitch class profile)
-    6: "spectral_contrast", # Spectral contrast 
+    6: "spectral_contrast",  # Spectral contrast
+    7: "tonnetz",  # Tonal centroid features
+    8: "prosodic",  # Prosodic features (F0, energy, etc.)
+    9: "stft",  # Short-Time Fourier Transform magnitude spectrogram
 }
 
 
@@ -697,6 +700,26 @@ def extract_feature(waveform: np.ndarray, feature_type=0, sr: int = 16000):
         ], axis=0)
         
         return prosodic_features
+
+    elif feature_type == 9:
+        # ==========================
+        # STFT Magnitude Spectrogram
+        # ==========================
+        # Short-Time Fourier Transform - captures full frequency resolution
+        # Used in VGG16+STFT achieving 99.96% accuracy in literature
+        # Returns magnitude spectrogram in dB scale
+        
+        n_fft = 512
+        hop_length = 160
+        
+        # Compute STFT
+        stft = librosa.stft(y=waveform, n_fft=n_fft, hop_length=hop_length)
+        
+        # Get magnitude and convert to dB scale
+        mag = np.abs(stft)
+        mag_db = librosa.amplitude_to_db(mag, ref=np.max)
+        
+        return mag_db  # Shape: (n_fft//2 + 1, time_frames) = (257, T)
 
     else:
         raise ValueError(
