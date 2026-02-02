@@ -3,26 +3,27 @@
 ### 9.1 Inference Flow
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#fff', 'primaryTextColor':'#000', 'primaryBorderColor':'#000', 'lineColor':'#000', 'secondaryColor':'#fff', 'tertiaryColor':'#fff', 'clusterBkg':'#fff', 'clusterBorder':'#000', 'titleColor':'#000', 'edgeLabelBackground':'#fff', 'fontSize':'16px', 'fontFamily':'arial'}}}%%
 flowchart TD
     %% Inference Pipeline Flowchart - 6 Stages
-    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
-    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef success fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
-    classDef warning fill:#ffcdd2,stroke:#c62828,stroke-width:2px
-    classDef xai fill:#e0f2f1,stroke:#00695c,stroke-width:2px,stroke-dasharray: 5 5
+    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:3px,color:#000,font-weight:bold
+    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:3px,color:#000,font-weight:bold
+    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px,color:#000,font-weight:bold
+    classDef success fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000,font-weight:bold
+    classDef warning fill:#ffcdd2,stroke:#c62828,stroke-width:3px,color:#000,font-weight:bold
+    classDef xai fill:#e0f2f1,stroke:#00695c,stroke-width:3px,stroke-dasharray: 5 5,color:#000,font-weight:bold
 
-    Input("Audio Input"):::storage
-    Stage1["Stage 1: Audio Loading<br/>& Preprocessing"]:::process
-    Stage2["Stage 2: Fixed-Length<br/>Normalization"]:::process
-    Stage3["Stage 3: Feature<br/>Extraction"]:::process
-    Stage4["Stage 4: Model<br/>Inference"]:::process
-    Stage5{"Stage 5: Decision<br/>Making"}:::decision
+    Input("**Audio Input**"):::storage
+    Stage1["**Stage 1: Audio Loading**<br/>**& Preprocessing**"]:::process
+    Stage2["**Stage 2: Fixed-Length**<br/>**Normalization**"]:::process
+    Stage3["**Stage 3: Feature**<br/>**Extraction**"]:::process
+    Stage4["**Stage 4: Model**<br/>**Inference**"]:::process
+    Stage5{"**Stage 5: Decision**<br/>**Making**"}:::decision
 
-    Real["Bonafide<br/>(Genuine Audio)"]:::success
-    Fake["Spoof<br/>(AI-Generated)"]:::warning
+    Real["**Bonafide**<br/>**(Genuine Audio)**"]:::success
+    Fake["**Spoof**<br/>**(AI-Generated)**"]:::warning
 
-    Stage6["Stage 6: XAI Analysis<br/>& Visualization"]:::xai
+    Stage6["**Stage 6: XAI Analysis**<br/>**& Visualization**"]:::xai
 
     Input --> Stage1
     Stage1 --> Stage2
@@ -30,10 +31,10 @@ flowchart TD
     Stage3 --> Stage4
     Stage4 --> Stage5
 
-    Stage5 -->|Score ≥ Threshold| Real
-    Stage5 -->|Score < Threshold| Fake
+    Stage5 -->|**Score ≥ Threshold**| Real
+    Stage5 -->|**Score < Threshold**| Fake
 
-    Stage4 -.->|Optional| Stage6
+    Stage4 -.->|**Optional**| Stage6
 ```
 
 ### 9.1.1 Inference Steps Overview

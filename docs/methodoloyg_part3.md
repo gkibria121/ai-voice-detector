@@ -1,38 +1,39 @@
-
 ## 6. Training Procedure
 
 ### 6.1 Training Lifecycle Diagram
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#fff', 'primaryTextColor':'#000', 'primaryBorderColor':'#000', 'lineColor':'#000', 'secondaryColor':'#fff', 'tertiaryColor':'#fff', 'clusterBkg':'#fff', 'clusterBorder':'#000', 'titleColor':'#000', 'edgeLabelBackground':'#fff', 'fontSize':'16px', 'fontFamily':'arial'}}}%%
 flowchart TD
     %% Training Loop Diagram derived from main.py
-    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
-    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef final fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef process fill:#e1f5fe,stroke:#01579b,stroke-width:3px,color:#000,font-weight:bold
+    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:3px,color:#000,font-weight:bold
+    classDef storage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px,color:#000,font-weight:bold
+    classDef final fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px,color:#000,font-weight:bold
 
-    Start(["1. Start"]):::storage --> Init["2. Load Config & Reproducibility"]:::storage
-    Init --> EpochStart["3. Start Training Loop"]:::process
+    Start(["**1. Start**"]):::storage --> Init["**2. Load Config & Reproducibility**"]:::storage
+    Init --> EpochStart["**3. Start Training Loop**"]:::process
 
-    subgraph EpochLoop["Loop (Repeat per Epoch)"]
-        Train["4. Train Epoch<br/>AMP Mixed Precision"]:::process
-        Validate["5. Validate Epoch<br/>Dev Set"]:::process
-        CheckEER["6. Compute Dev EER"]:::process
+    subgraph EpochLoop["<b>EPOCH LOOP</b>"]
+        direction TB
+        Train["**4. Train Epoch**<br/>**AMP Mixed Precision**"]:::process
+        Validate["**5. Validate Epoch**<br/>**Dev Set**"]:::process
+        CheckEER["**6. Compute Dev EER**"]:::process
 
-        subgraph CheckBest["Best Model Check"]
-            IsBest{"6a. Is Best<br/>Model?"}:::decision
-            SaveBest["6b. Save Best Model"]:::storage
-            EvalTest["6c. Evaluate on Test"]:::process
-            UpdateTracker["6d. Update Tracker"]:::process
+        subgraph CheckBest["<b>BEST MODEL CHECK</b>"]
+            IsBest{"**6a. Is Best**<br/>**Model?**"}:::decision
+            SaveBest["**6b. Save Best Model**"]:::storage
+            EvalTest["**6c. Evaluate on Test**"]:::process
+            UpdateTracker["**6d. Update Tracker**"]:::process
         end
 
-        SWA["7. Update SWA Weights"]:::process
+        SWA["**7. Update SWA Weights**"]:::process
 
         Train --> Validate
         Validate --> CheckEER
         CheckEER --> IsBest
-        IsBest -->|New Best| SaveBest
-        IsBest -->|No Improvement| UpdateTracker
+        IsBest -->|**New Best**| SaveBest
+        IsBest -->|**No Improvement**| UpdateTracker
         SaveBest --> EvalTest
         EvalTest --> UpdateTracker
         UpdateTracker --> SWA
@@ -40,12 +41,12 @@ flowchart TD
     end
 
     EpochStart --> Train
-    Train -.->|Max Epochs| Finalize["8. Finalize Training"]:::process
+    Train -.->|**Max Epochs**| Finalize["**8. Finalize Training**"]:::process
 
-    Finalize --> ProcessSWA["9. Apply SWA &<br/>Update BN"]:::process
-    ProcessSWA --> FinalEval["10. Final Evaluation<br/>Test Set"]:::process
-    FinalEval --> Metrics["11. Save Metrics &<br/>Visualizations"]:::final
-    Metrics --> End(["12. End"]):::final
+    Finalize --> ProcessSWA["**9. Apply SWA &**<br/>**Update BN**"]:::process
+    ProcessSWA --> FinalEval["**10. Final Evaluation**<br/>**Test Set**"]:::process
+    FinalEval --> Metrics["**11. Save Metrics &**<br/>**Visualizations**"]:::final
+    Metrics --> End(["**12. End**"]):::final
 ```
 
 ### 6.1.1 Training Steps Overview
@@ -180,37 +181,44 @@ The optimal ensemble configuration comprises three distinct architectures, selec
 The following diagram illustrates the multi-stream ensemble architecture, demonstrating the parallel processing pathways and the fusion mechanism.
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#fff', 'primaryTextColor':'#000', 'primaryBorderColor':'#000', 'lineColor':'#000', 'secondaryColor':'#fff', 'tertiaryColor':'#fff', 'clusterBkg':'#fff', 'clusterBorder':'#000', 'titleColor':'#000', 'edgeLabelBackground':'#fff', 'fontSize':'16px', 'fontFamily':'arial'}}}%%
 graph TD
-    Input[Input Audio Spectrogram] --> Branch1
+    classDef inputStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px,color:#000,font-weight:bold
+    classDef branchStyle fill:#e1f5fe,stroke:#01579b,stroke-width:3px,color:#000,font-weight:bold
+    classDef embedStyle fill:#fff9c4,stroke:#fbc02d,stroke-width:3px,color:#000,font-weight:bold
+    classDef fusionStyle fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px,color:#000,font-weight:bold
+    classDef outputStyle fill:#ffcdd2,stroke:#c62828,stroke-width:3px,color:#000,font-weight:bold
+
+    Input["**Input Audio Spectrogram**"]:::inputStyle --> Branch1
     Input --> Branch2
     Input --> Branch3
 
-    subgraph "Feature Extraction Stage"
-        Branch1[Light CNN Stream]
-        Branch2[SE-ResNet Stream]
-        Branch3[EfficientNet-B2 Attention Stream]
+    subgraph Stage1["<b>FEATURE EXTRACTION STAGE</b>"]
+        Branch1["**Light CNN Stream**"]:::branchStyle
+        Branch2["**SE-ResNet Stream**"]:::branchStyle
+        Branch3["**EfficientNet-B2 Attention Stream**"]:::branchStyle
     end
 
-    Branch1 --> Embed1[Embedding & Logits]
-    Branch2 --> Embed2[Embedding & Logits]
-    Branch3 --> Embed3[Embedding & Logits]
+    Branch1 --> Embed1["**Embedding & Logits**"]:::embedStyle
+    Branch2 --> Embed2["**Embedding & Logits**"]:::embedStyle
+    Branch3 --> Embed3["**Embedding & Logits**"]:::embedStyle
 
-    subgraph "Harmonization & Fusion"
-        Embed1 --> Proj1[Learnable Projection]
-        Embed2 --> Proj2[Learnable Projection]
-        Embed3 --> Proj3[Learnable Projection]
+    subgraph Stage2["<b>HARMONIZATION & FUSION</b>"]
+        Embed1 --> Proj1["**Learnable Projection**"]:::fusionStyle
+        Embed2 --> Proj2["**Learnable Projection**"]:::fusionStyle
+        Embed3 --> Proj3["**Learnable Projection**"]:::fusionStyle
 
-        Proj1 --> FusedEmbed[Feature Aggregation]
+        Proj1 --> FusedEmbed["**Feature Aggregation**"]:::fusionStyle
         Proj2 --> FusedEmbed
         Proj3 --> FusedEmbed
 
-        Embed1 --> SoftVote[Soft Voting / Logit Averaging]
+        Embed1 --> SoftVote["**Soft Voting / Logit Averaging**"]:::fusionStyle
         Embed2 --> SoftVote
         Embed3 --> SoftVote
     end
 
-    FusedEmbed --> Rep[Unified Representation]
-    SoftVote --> Decision[Final Bonafide/Spoof Probability]
+    FusedEmbed --> Rep["**Unified Representation**"]:::outputStyle
+    SoftVote --> Decision["**Final Bonafide/Spoof Probability**"]:::outputStyle
 ```
 
 ### 8.5 Information Fusion and Decision Making

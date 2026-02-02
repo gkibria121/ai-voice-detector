@@ -34,32 +34,33 @@ SimpleCNN is a lightweight 1D convolutional neural network designed for processi
 **Network Structure:**
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#fff', 'primaryTextColor':'#000', 'primaryBorderColor':'#000', 'lineColor':'#000', 'secondaryColor':'#fff', 'tertiaryColor':'#fff', 'clusterBkg':'#fff', 'clusterBorder':'#000', 'titleColor':'#000', 'edgeLabelBackground':'#fff', 'fontSize':'16px', 'fontFamily':'arial'}}}%%
 flowchart TD
     %% CNN Architecture
-    classDef input fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef conv fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef pool fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
-    classDef fc fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    classDef output fill:#ffcdd2,stroke:#c62828,stroke-width:2px
+    classDef input fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px,color:#000,font-weight:bold
+    classDef conv fill:#e1f5fe,stroke:#01579b,stroke-width:3px,color:#000,font-weight:bold
+    classDef pool fill:#fff9c4,stroke:#fbc02d,stroke-width:3px,color:#000,font-weight:bold
+    classDef fc fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px,color:#000,font-weight:bold
+    classDef output fill:#ffcdd2,stroke:#c62828,stroke-width:3px,color:#000,font-weight:bold
 
-    subgraph Layer1[" "]
+    subgraph Layer1["<b>LAYER 1</b>"]
         direction LR
-        Input["Input<br/>(1, 64600)"]:::input
-        Conv1["Conv1D(1→32, k=80, s=4)<br/>BatchNorm → ReLU"]:::conv
-        Pool1["MaxPool(4)"]:::pool
-        Conv2["Conv1D(32→64, k=3, s=1)<br/>BatchNorm → ReLU"]:::conv
-        Pool2["MaxPool(4)"]:::pool
+        Input["**Input**<br/>**(1, 64600)**"]:::input
+        Conv1["**Conv1D(1→32, k=80, s=4)**<br/>**BatchNorm → ReLU**"]:::conv
+        Pool1["**MaxPool(4)**"]:::pool
+        Conv2["**Conv1D(32→64, k=3, s=1)**<br/>**BatchNorm → ReLU**"]:::conv
+        Pool2["**MaxPool(4)**"]:::pool
 
         Input --> Conv1 --> Pool1 --> Conv2 --> Pool2
     end
 
-    subgraph Layer2[" "]
+    subgraph Layer2["<b>LAYER 2</b>"]
         direction LR
-        Conv3["Conv1D(64→128, k=3, s=1)<br/>BatchNorm → ReLU"]:::conv
-        Pool3["MaxPool(4)"]:::pool
-        AdaptPool["Adaptive Average Pooling (1)"]:::pool
-        FC["FC(128→64) → ReLU → Dropout(0.5)<br/>FC(64→2)"]:::fc
-        Output["Output Logits<br/>(2)"]:::output
+        Conv3["**Conv1D(64→128, k=3, s=1)**<br/>**BatchNorm → ReLU**"]:::conv
+        Pool3["**MaxPool(4)**"]:::pool
+        AdaptPool["**Adaptive Average Pooling (1)**"]:::pool
+        FC["**FC(128→64) → ReLU → Dropout(0.5)**<br/>**FC(64→2)**"]:::fc
+        Output["**Output Logits**<br/>**(2)**"]:::output
 
         Conv3 --> Pool3 --> AdaptPool --> FC --> Output
     end
@@ -78,7 +79,7 @@ flowchart TD
 **Feature Extraction Pipeline:**
 
 ```
-Raw Waveform (64600) 
+Raw Waveform (64600)
 → Conv-Pool-Conv-Pool-Conv-Pool (128 channels)
 → Adaptive Pool (128-D embedding)
 → FC layers → 2-class output
@@ -157,9 +158,9 @@ Instead of global average pooling, this variant uses learnable attention weights
 
 2. **Attentive Statistics Pooling:**
    $$\mu_c = \sum_{h,w} \alpha_{h,w} \mathbf{F}_{c,h,w}$$
-   
+
    $$\sigma_c = \sqrt{\sum_{h,w} \alpha_{h,w} (\mathbf{F}_{c,h,w} - \mu_c)^2 + \epsilon}$$
-   
+
    $$\mathbf{v} = [\mu; \sigma]$$
 
    where $\epsilon = 10^{-8}$ ensures numerical stability. The concatenation of attention-weighted mean and standard deviation provides a richer representation that captures both central tendency and variability of feature activations.
@@ -197,7 +198,7 @@ This reduces the channel dimension by half while preserving the most salient fea
 
 **Network Structure:**
 
-``` 
+```
 Input (1, 128, T)
 → Conv-MFM Block (32) → MaxPool(2×2)
 → Conv-MFM Block (48) → Residual Block (48) → MaxPool(2×2)
@@ -294,28 +295,28 @@ RawNet3 processes raw waveforms directly, eliminating handcrafted feature extrac
 
 **Key Components:**
 
-1. **Sinc Convolution Layer:** 
-   
+1. **Sinc Convolution Layer:**
+
    Parameterized band-pass filters learn frequency band selection. Each filter is defined as:
 
    $$h[n] = 2f_c \text{sinc}(2\pi f_c n) \cdot w[n]$$
 
    where $f_c$ is the learnable cutoff frequency and $w[n]$ is a Hamming window. The layer uses 64 filters with kernel size 251, initialized with Mel-scale frequency spacing.
 
-2. **Res2Net Blocks:** 
-   
+2. **Res2Net Blocks:**
+
    Multi-scale feature extraction with hierarchical residual-like connections. Each Res2Net block operates as follows:
    - Split input channels into $s=4$ groups: $\mathbf{X} = [\mathbf{X}_1, \mathbf{X}_2, \mathbf{X}_3, \mathbf{X}_4]$
    - Apply hierarchical transformations:
      - $\mathbf{Y}_1 = \text{Conv}_{3×1}(\mathbf{X}_1)$
      - $\mathbf{Y}_i = \text{Conv}_{3×1}(\mathbf{X}_i + \mathbf{Y}_{i-1})$ for $i \in \{2,3,4\}$
    - Concatenate outputs: $\mathbf{Y} = [\mathbf{Y}_1, \mathbf{Y}_2, \mathbf{Y}_3, \mathbf{Y}_4]$
-   
+
    This creates multi-scale receptive fields and improves feature reuse.
 
 3. **Encoder Structure:**
 
-``` 
+```
 Raw Waveform (B, 64600)
 → SincConv(64 filters, k=251) → BatchNorm → ReLU → MaxPool
 → Res2Net Block (64→64) → BatchNorm → ReLU → MaxPool
@@ -326,12 +327,12 @@ Raw Waveform (B, 64600)
 → 512-D Feature Embedding
 ```
 
-4. **Attention Pooling:** 
-   
+4. **Attention Pooling:**
+
    Temporal attention aggregates variable-length sequences into fixed-size embeddings:
-   
+
    $$\alpha_t = \text{softmax}(\tanh(W_1 h_t) \cdot W_2)$$
-   
+
    $$\mathbf{e} = \sum_t \alpha_t h_t$$
 
    where $h_t \in \mathbb{R}^{512}$ is the feature at time $t$, and $\mathbf{e} \in \mathbb{R}^{512}$ is the final embedding.
@@ -435,6 +436,7 @@ We employ a weighted Cross-Entropy loss to address class imbalance in the datase
 $$\mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N} w_{y_i} \log p_{y_i}(\mathbf{x}_i)$$
 
 where:
+
 - $N$ is the batch size
 - $y_i \in \{0, 1\}$ is the true label (0=spoof, 1=bonafide)
 - $p_{y_i}(\mathbf{x}_i)$ is the predicted probability for the true class
@@ -459,6 +461,7 @@ Cosine annealing without warm restarts gradually reduces the learning rate:
 $$\eta_t = \eta_{\min} + \frac{1}{2}(\eta_{\max} - \eta_{\min})\left(1 + \cos\left(\frac{t}{T}\pi\right)\right)$$
 
 where:
+
 - $t$ is the current training step
 - $T$ is the total number of training steps
 - $\eta_{\max} = 10^{-4}$ (initial learning rate)
