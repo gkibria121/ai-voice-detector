@@ -184,6 +184,22 @@ def main(args: argparse.Namespace) -> None:
     if args.eval_model_weights is not None:
         config["model_path"] = args.eval_model_weights
     
+    # Check for heterogeneous ensemble (per-model feature types)
+    is_heterogeneous = config.get("heterogeneous_ensemble", False)
+    if is_heterogeneous and isinstance(model_config, (list, tuple)):
+        # Extract unique feature types from model configs
+        hetero_feature_types = []
+        for mconf in model_config:
+            ft = mconf.get("feature_type", 1)  # Default to mel spectrogram
+            if ft not in hetero_feature_types:
+                hetero_feature_types.append(ft)
+        # Store the list of feature types for dataset extraction
+        config["hetero_feature_types"] = hetero_feature_types
+        config["feature_type"] = hetero_feature_types  # Use list for multimodal dataset
+        print(f"\n🔀 Heterogeneous Ensemble detected!")
+        print(f"   Per-model feature types: {[mconf.get('feature_type', 1) for mconf in model_config]}")
+        print(f"   Unique features to extract: {hetero_feature_types}")
+    
     # Set feature_type in config
     # Support multimodal feature types passed as comma-separated string e.g. "1,2,3"
     if args.feature_type is not None:
@@ -390,8 +406,11 @@ def main(args: argparse.Namespace) -> None:
             torch.backends.cudnn.deterministic = True
 
     # define model architecture
-    model = get_model(model_config, device)
+    model = get_model(model_config, device, config)
 
+    # Skip multimodal wrapper for heterogeneous ensembles (they handle features internally)
+    is_heterogeneous = config.get("heterogeneous_ensemble", False)
+    
     # If using multimodal spectrogram inputs (feature_type is a list), wrap the
     # base model to perform intermediate fusion when possible. The wrapper will
     # run the backbone per-modality and concat feature maps before pooling.
@@ -451,9 +470,9 @@ def main(args: argparse.Namespace) -> None:
                 # Many models accept both 3D (B,H,T) and 4D (B,1,H,T)
                 return self.base(fused_in, Freq_aug=Freq_aug)
 
-    # Wrap model if multimodal feature_type specified
+    # Wrap model if multimodal feature_type specified (but NOT for heterogeneous ensembles)
     ft_conf = config.get("feature_type", None)
-    if isinstance(ft_conf, (list, tuple)) and len(ft_conf) > 1:
+    if isinstance(ft_conf, (list, tuple)) and len(ft_conf) > 1 and not is_heterogeneous:
         num_modalities = len(ft_conf)
         # Resolve human-readable feature names from FEATURE_TYPES mapping
         try:
@@ -869,12 +888,22 @@ def evaluate_model(dataset_type, cm_scores_file, database_path, config, output_f
     return eer, None, acc  # No t-DCF for these datasets
 
 
-def get_model(model_config: Dict, device: torch.device):
-    """Define DNN model architecture"""
+def get_model(model_config: Dict, device: torch.device, config: Dict = None):
+    """Define DNN model architecture
+    
+    Args:
+        model_config: Model configuration dict or list of dicts for ensemble
+        device: torch device
+        config: Full config dict (needed for heterogeneous ensemble detection)
+    """
+    # Check for heterogeneous ensemble (per-model feature types)
+    is_heterogeneous = config.get("heterogeneous_ensemble", False) if config else False
+    
     # Support single model config (dict) or ensemble (list of model configs)
     if isinstance(model_config, (list, tuple)):
         # Build each sub-model and wrap in an ensemble
         models = []
+        model_feature_types = []  # Track per-model feature types
         for idx, mconf in enumerate(model_config):
             module = import_module("models.{}".format(mconf["architecture"]))
             model_variant = mconf.get("model_variant", None)
@@ -887,8 +916,122 @@ def get_model(model_config: Dict, device: torch.device):
 
             submodel = _model_cls(mconf).to(device)
             nb_params = sum([param.view(-1).size()[0] for param in submodel.parameters()])
-            print(f"no. params (model[{idx}] {mconf.get('architecture')}): {nb_params}")
+            ft = mconf.get("feature_type", 1)  # Default to mel spectrogram
+            model_feature_types.append(ft)
+            if is_heterogeneous:
+                print(f"no. params (model[{idx}] {mconf.get('architecture')}, feature_type={ft}): {nb_params}")
+            else:
+                print(f"no. params (model[{idx}] {mconf.get('architecture')}): {nb_params}")
             models.append(submodel)
+
+        # For heterogeneous ensemble, create a model that routes features to models
+        if is_heterogeneous:
+            # Get the unique feature types in order
+            hetero_feature_types = config.get("hetero_feature_types", list(set(model_feature_types)))
+            
+            class HeterogeneousEnsembleModel(nn.Module):
+                """Heterogeneous Ensemble that routes different feature types to different models.
+                
+                Input shape: (B, num_features, H, T) where each channel is a different feature type
+                Each model receives its corresponding feature slice based on its configured feature_type.
+                """
+                def __init__(self, model_list, model_ft_list, unique_ft_list):
+                    super().__init__()
+                    self.models = nn.ModuleList(model_list)
+                    self.is_ensemble = True
+                    self.is_heterogeneous = True
+                    
+                    # Map feature_type -> index in input tensor
+                    self.ft_to_channel = {ft: i for i, ft in enumerate(unique_ft_list)}
+                    # Map model index -> channel index
+                    self.model_channels = [self.ft_to_channel[ft] for ft in model_ft_list]
+                    
+                    # Store feature type info for printing
+                    self.model_ft_list = model_ft_list
+                    self.unique_ft_list = unique_ft_list
+                    
+                    # Infer embedding sizes for each submodel (same logic as regular ensemble)
+                    emb_dims = []
+                    for m in self.models:
+                        dim = None
+                        if hasattr(m, 'embedding'):
+                            bn_found = None
+                            linear_found = None
+                            has_mfm = False
+                            for mod in m.embedding.modules():
+                                if isinstance(mod, nn.BatchNorm1d):
+                                    bn_found = mod.num_features
+                                if isinstance(mod, nn.Linear) and linear_found is None:
+                                    linear_found = getattr(mod, 'out_features', None)
+                                if mod.__class__.__name__.startswith('MaxFeatureMap'):
+                                    has_mfm = True
+                            if bn_found is not None:
+                                dim = bn_found
+                            elif linear_found is not None:
+                                if has_mfm and linear_found % 2 == 0:
+                                    dim = linear_found // 2
+                                else:
+                                    dim = linear_found
+                        if dim is None and hasattr(m, 'classifier'):
+                            for mod in m.classifier.modules():
+                                if isinstance(mod, nn.Linear):
+                                    dim = getattr(mod, 'in_features', None)
+                                    break
+                        emb_dims.append(dim)
+                    
+                    valid_dims = [d for d in emb_dims if d is not None]
+                    self.target_emb_dim = max(valid_dims) if valid_dims else 128
+                    
+                    projs = []
+                    for d in emb_dims:
+                        if d is None or d == self.target_emb_dim:
+                            projs.append(nn.Identity())
+                        else:
+                            lin = nn.Linear(d, self.target_emb_dim)
+                            nn.init.xavier_uniform_(lin.weight)
+                            if lin.bias is not None:
+                                nn.init.constant_(lin.bias, 0.0)
+                            projs.append(lin)
+                    self.projections = nn.ModuleList(projs)
+
+                def forward(self, x, Freq_aug=False):
+                    # x shape: (B, C, H, T) where C = number of unique feature types
+                    outs = []
+                    embs = []
+                    for i, m in enumerate(self.models):
+                        # Get the channel index for this model's feature type
+                        ch_idx = self.model_channels[i]
+                        # Extract this model's feature slice: (B, 1, H, T)
+                        x_i = x[:, ch_idx:ch_idx+1, :, :]
+                        emb, out = m(x_i, Freq_aug=Freq_aug)
+                        embs.append(emb)
+                        outs.append(out)
+                    
+                    # Average logits
+                    stacked_outs = torch.stack(outs, dim=0)
+                    avg_out = torch.mean(stacked_outs, dim=0)
+                    
+                    # Project embeddings to common size then average
+                    proj_embs = []
+                    for i, emb in enumerate(embs):
+                        proj = self.projections[i]
+                        if isinstance(proj, nn.Identity):
+                            proj_embs.append(emb)
+                        else:
+                            proj_embs.append(proj(emb))
+                    
+                    stacked_embs = torch.stack(proj_embs, dim=0)
+                    avg_emb = torch.mean(stacked_embs, dim=0)
+                    
+                    return avg_emb, avg_out
+            
+            ensemble = HeterogeneousEnsembleModel(models, model_feature_types, hetero_feature_types).to(device)
+            total_params = sum(p.numel() for p in ensemble.parameters())
+            print(f"\\n\ud83d\udd00 Heterogeneous Ensemble created:")
+            print(f"   Models: {len(models)}")
+            print(f"   Feature routing: {[(mconf.get('architecture'), mconf.get('feature_type', 1)) for mconf in model_config]}")
+            print(f"   Total params: {total_params}")
+            return ensemble
 
         class EnsembleModel(nn.Module):
             """Ensemble wrapper that averages logits and projects embeddings.
