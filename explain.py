@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 CLI tool for Explainable AI (XAI) analysis of the Voice Detector models.
-Supports only Grad-CAM.
+Supports Grad-CAM, SHAP, and frequency band analysis.
 """
 
 import argparse
@@ -19,7 +19,14 @@ import matplotlib.pyplot as plt
 # Add current directory to path to allow imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from explainability import GradCAM, visualize_saliency
+# Force reload explainability module to pick up changes
+import importlib
+import explainability
+importlib.reload(explainability)
+
+from explainability import (GradCAM, visualize_saliency, AudioSHAP, 
+                            SpectrogramRegionAnalysis, visualize_shap_values,
+                            visualize_band_importance, SHAP_AVAILABLE)
 
 def load_model(config_path: str, weights_path: str, device: torch.device):
     """Load model from config and weights."""
@@ -176,7 +183,8 @@ def load_model(config_path: str, weights_path: str, device: torch.device):
     # Load weights
     if weights_path and os.path.exists(weights_path):
         print(f"Loading weights from: {weights_path}")
-        state = torch.load(weights_path, map_location=device)
+        # Use weights_only=False for compatibility with older saved models
+        state = torch.load(weights_path, map_location=device, weights_only=False)
         
         # Handle different state dict formats
         if isinstance(state, dict):
@@ -319,6 +327,121 @@ def find_gradcam_target_layer(model):
         print(f"Error finding target layer: {e}")
         
     return target_layer
+
+
+def run_shap(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class, show_plots, save_plots):
+    """Run SHAP analysis for model interpretation."""
+    print("\n[SHAP] Running SHAP Analysis...")
+    
+    if not SHAP_AVAILABLE:
+        print("  [!] SHAP not available. Install with: pip install shap")
+        return
+    
+    try:
+        # Get model prediction
+        model.eval()
+        with torch.no_grad():
+            _, output = model(input_tensor)
+            probs = torch.softmax(output, dim=1)
+            pred_class = output.argmax(dim=1).item()
+            confidence = probs[0, pred_class].item()
+        
+        current_target = target_class if target_class is not None else pred_class
+        pred_label = "REAL" if pred_class == 1 else "FAKE"
+        print(f"  Prediction: {pred_label} (confidence: {confidence:.1%})")
+        print(f"  Explaining class: {current_target}")
+        
+        # Create SHAP explainer
+        shap_explainer = AudioSHAP(model, device=device)
+        
+        # Compute SHAP values
+        print("  Computing SHAP values (this may take a moment)...")
+        shap_values = shap_explainer.compute_shap_values(input_tensor, target_class=current_target)
+        
+        if shap_values is not None:
+            vis_input = spectrogram_vis if spectrogram_vis is not None else input_tensor.detach().cpu().numpy()
+            
+            if save_plots:
+                save_path = os.path.join(output_dir, f"{base_name}_shap_values.png")
+                visualize_shap_values(shap_values, input_spectrogram=vis_input, save_path=save_path,
+                                     title=f"SHAP Values ({pred_label}, conf={confidence:.1%})")
+                print(f"  [OK] Saved: {save_path}")
+            
+            if show_plots:
+                visualize_shap_values(shap_values, input_spectrogram=vis_input, save_path=None,
+                                     title=f"SHAP Values ({pred_label}, conf={confidence:.1%})")
+        else:
+            print("  [!] Could not compute SHAP values")
+            
+    except Exception as e:
+        print(f"  [X] SHAP analysis failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def run_analysis(model, input_tensor, spectrogram_vis, base_name, output_dir, device, show_plots, save_plots):
+    """Run frequency band and temporal analysis."""
+    print("\n[ANALYSIS] Running Audio Region Analysis...")
+    
+    try:
+        # Get model prediction
+        model.eval()
+        with torch.no_grad():
+            _, output = model(input_tensor)
+            probs = torch.softmax(output, dim=1)
+            pred_class = output.argmax(dim=1).item()
+            confidence = probs[0, pred_class].item()
+        
+        pred_label = "REAL" if pred_class == 1 else "FAKE"
+        
+        # First, get an importance map using a simple gradient method
+        print("  Computing importance map...")
+        
+        # Use gradient saliency as the importance source
+        from explainability import GradientSaliency
+        saliency = GradientSaliency(model, device=device)
+        importance_map = saliency.compute_saliency(input_tensor, target_class=pred_class)
+        
+        if importance_map is not None:
+            # Create analyzer
+            analyzer = SpectrogramRegionAnalysis(model, device=device)
+            
+            # Analyze frequency bands
+            print("  Analyzing frequency band importance...")
+            band_scores = analyzer.analyze_importance_by_band(importance_map)
+            
+            # Analyze temporal patterns
+            print("  Analyzing temporal patterns...")
+            temporal = analyzer.analyze_temporal_pattern(importance_map)
+            
+            # Generate and print report
+            report = analyzer.generate_report(importance_map, pred_class, confidence)
+            print(report)
+            
+            # Save report
+            if save_plots:
+                report_path = os.path.join(output_dir, f"{base_name}_analysis_report.txt")
+                with open(report_path, 'w') as f:
+                    f.write(report)
+                print(f"  [OK] Saved report: {report_path}")
+                
+                # Visualize band importance
+                band_path = os.path.join(output_dir, f"{base_name}_band_importance.png")
+                visualize_band_importance(band_scores, save_path=band_path, 
+                                         title=f"Frequency Band Importance ({pred_label})")
+                print(f"  [OK] Saved: {band_path}")
+            
+            if show_plots:
+                visualize_band_importance(band_scores, save_path=None,
+                                         title=f"Frequency Band Importance ({pred_label})")
+        else:
+            print("  [!] Could not compute importance map")
+            
+    except Exception as e:
+        print(f"  [X] Analysis failed: {e}")
+        import traceback
+        traceback.print_exc()
+
 
 def run_gradcam(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class, show_plots, save_plots):
     """Run Grad-CAM. Handles both single models and ensembles."""
@@ -582,9 +705,9 @@ Examples:
     parser.add_argument("--audio_file", required=True, help="Path to input audio file")
     parser.add_argument("--model_path", help="Path to model weights (.pth)")
     parser.add_argument("--method", nargs='+', 
-                        choices=["gradcam", "all"], 
+                        choices=["gradcam", "shap", "analysis", "all"], 
                         default=None,
-                        help="XAI method(s) to use. Only Grad-CAM is supported.")
+                        help="XAI method(s) to use: gradcam, shap, analysis, or all")
     parser.add_argument("--output_dir", default="explained_outputs", help="Directory to save visualizations")
     parser.add_argument("--cpu", action="store_true", help="Force CPU usage")
     parser.add_argument("--target_class", type=int, default=None, 
@@ -636,7 +759,7 @@ Examples:
     
     # Determine which methods to run
     if args.method is None or "all" in args.method:
-        methods = ["gradcam"]
+        methods = ["gradcam", "shap", "analysis"]
     else:
         methods = args.method 
     
@@ -657,8 +780,14 @@ Examples:
             if method == "gradcam":
                 run_gradcam(model, input_tensor, spectrogram_vis, base_name, 
                           args.output_dir, device, args.target_class, args.show, save_plots)
+            elif method == "shap":
+                run_shap(model, input_tensor, spectrogram_vis, base_name,
+                        args.output_dir, device, args.target_class, args.show, save_plots)
+            elif method == "analysis":
+                run_analysis(model, input_tensor, spectrogram_vis, base_name,
+                           args.output_dir, device, args.show, save_plots)
         except Exception as e:
-            print(f"  ✗ Error running {method}: {e}")
+            print(f"  [X] Error running {method}: {e}")
             import traceback
             traceback.print_exc()
     

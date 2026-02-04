@@ -16,5 +16,6 @@ streamlit
 scikit-learn
 scipy
 sympy<1.13
+shap
 hf_xet
 transformers

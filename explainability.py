@@ -1,12 +1,26 @@
 """
 Explainability Utilities for AI Voice Detector
 
-This module provides GradCAM tools for model interpretability.
+This module provides GradCAM, SHAP, and other XAI tools for model interpretability.
 """
 
 import numpy as np
 import torch
 import torch.nn.functional as F
+
+
+# Check for optional dependencies
+try:
+    import shap
+    SHAP_AVAILABLE = True
+except ImportError:
+    SHAP_AVAILABLE = False
+
+try:
+    import librosa
+    LIBROSA_AVAILABLE = True
+except ImportError:
+    LIBROSA_AVAILABLE = False
 
 
 class AttentionExtractor:
@@ -549,6 +563,502 @@ def visualize_saliency(saliency_map, input_spectrogram=None, save_path=None):
             ax.set_title('Saliency Map')
             ax.set_xlabel('Time')
             ax.set_ylabel('Frequency')
+        
+        plt.tight_layout()
+        
+        if save_path:
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            plt.close()
+        else:
+            plt.show()
+            
+    except ImportError:
+        print("matplotlib required for visualization")
+
+
+class _ModelOutputWrapper(torch.nn.Module):
+    """Wrapper that returns only logits from models that return (features, logits) tuples."""
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+    
+    def forward(self, x):
+        output = self.model(x)
+        # Handle tuple outputs (features, logits)
+        if isinstance(output, tuple):
+            return output[1]  # Return only logits
+        return output
+
+
+class AudioSHAP:
+    """
+    SHAP (SHapley Additive exPlanations) analysis for audio models.
+    
+    Uses DeepExplainer or GradientExplainer for efficient SHAP value computation
+    on deep learning models. Provides feature attribution at the spectrogram level.
+    
+    Reference: Lundberg & Lee, "A Unified Approach to Interpreting Model Predictions"
+    """
+    def __init__(self, model, device='cpu', background_samples=None):
+        """
+        Args:
+            model: The model to explain
+            device: Device to run on
+            background_samples: Background dataset for SHAP (tensor of shape (N, ...))
+                               If None, will use zeros as baseline
+        """
+        if not SHAP_AVAILABLE:
+            raise ImportError("SHAP library not installed. Install with: pip install shap")
+        
+        self.model = model
+        self.device = device
+        self.model.eval()
+        
+        # Create wrapper for SHAP that returns only logits
+        self._model_for_shap = _ModelOutputWrapper(model).to(device)
+        self._model_for_shap.eval()
+        
+        # Store background samples
+        if background_samples is not None:
+            self.background = background_samples.to(device)
+        else:
+            self.background = None
+        
+        self._explainer = None
+    
+    def _model_wrapper(self, x):
+        """Wrapper to return only logits for SHAP."""
+        if isinstance(x, np.ndarray):
+            x = torch.from_numpy(x).float().to(self.device)
+        with torch.no_grad():
+            output = self._model_for_shap(x)
+        return output.cpu().numpy()
+    
+    def _get_explainer(self, input_tensor):
+        """Get or create SHAP explainer."""
+        if self._explainer is not None:
+            return self._explainer
+        
+        # Use background samples or create from input
+        if self.background is not None:
+            background = self.background
+        else:
+            # Use zeros as baseline (common for spectrograms)
+            background = torch.zeros_like(input_tensor).to(self.device)
+            # Add small noise to avoid numerical issues
+            background = background + torch.randn_like(background) * 0.01
+        
+        # Try GradientExplainer first (works with gradients)
+        try:
+            self._explainer = shap.GradientExplainer(
+                self._model_for_shap,
+                background
+            )
+        except Exception:
+            # Fallback to DeepExplainer
+            try:
+                self._explainer = shap.DeepExplainer(
+                    self._model_for_shap,
+                    background
+                )
+            except Exception as e:
+                print(f"Warning: Could not create SHAP explainer: {e}")
+                self._explainer = None
+        
+        return self._explainer
+    
+    def compute_shap_values(self, x, target_class=None, n_samples=100):
+        """
+        Compute SHAP values for input.
+        
+        Args:
+            x: Input tensor (batch, channels, freq, time) or (batch, channels, time)
+            target_class: Class to explain. If None, uses predicted class.
+            n_samples: Number of samples for approximation
+            
+        Returns:
+            SHAP values array of same shape as input
+        """
+        self.model.eval()
+        x = x.to(self.device)
+        
+        # Get prediction if target_class not specified
+        if target_class is None:
+            with torch.no_grad():
+                output = self._model_for_shap(x)
+                target_class = output.argmax(dim=1).item()
+        
+        explainer = self._get_explainer(x)
+        
+        if explainer is None:
+            # Fallback to perturbation-based SHAP
+            return self._compute_perturbation_shap(x, target_class, n_samples)
+        
+        try:
+            # Compute SHAP values
+            shap_values = explainer.shap_values(x)
+            
+            # Handle different output formats
+            if isinstance(shap_values, list):
+                # Multi-class output - select target class
+                shap_values = shap_values[target_class]
+            
+            if isinstance(shap_values, np.ndarray):
+                return torch.from_numpy(shap_values)
+            return shap_values
+            
+        except Exception as e:
+            print(f"SHAP explainer failed: {e}, using perturbation method")
+            return self._compute_perturbation_shap(x, target_class, n_samples)
+    
+    def _compute_perturbation_shap(self, x, target_class, n_samples=100):
+        """
+        Compute approximate SHAP values using perturbation sampling.
+        Works when gradient-based methods fail.
+        """
+        self.model.eval()
+        x = x.to(self.device)
+        original_shape = x.shape
+        
+        with torch.no_grad():
+            orig_output = self._model_for_shap(x)
+            orig_prob = F.softmax(orig_output, dim=1)[0, target_class].item()
+        
+        # For spectrograms, compute importance per time-frequency region
+        if x.ndim == 4:  # (B, C, H, W)
+            h, w = x.shape[2], x.shape[3]
+            # Use coarser grid for efficiency
+            grid_h, grid_w = min(16, h), min(32, w)
+            step_h, step_w = max(1, h // grid_h), max(1, w // grid_w)
+            
+            importance = torch.zeros((h, w), device=self.device)
+            counts = torch.zeros((h, w), device=self.device)
+            
+            for _ in range(n_samples):
+                # Random mask
+                mask = torch.rand((grid_h, grid_w), device=self.device) > 0.5
+                mask = mask.float()
+                # Upsample mask to input size
+                mask = F.interpolate(
+                    mask.unsqueeze(0).unsqueeze(0), 
+                    size=(h, w), 
+                    mode='nearest'
+                ).squeeze()
+                
+                # Apply mask (multiply input by mask)
+                x_masked = x.clone()
+                x_masked = x_masked * mask.unsqueeze(0).unsqueeze(0)
+                
+                with torch.no_grad():
+                    output = self._model_for_shap(x_masked)
+                    prob = F.softmax(output, dim=1)[0, target_class].item()
+                
+                # Contribution = difference when feature is present
+                contrib = orig_prob - prob
+                importance += mask * contrib
+                counts += mask
+            
+            # Average contributions
+            importance = importance / (counts + 1e-8)
+            return importance.unsqueeze(0).unsqueeze(0).cpu()
+            
+        elif x.ndim == 3:  # (B, C, L) - raw audio
+            l = x.shape[2]
+            grid_l = min(64, l)
+            
+            importance = torch.zeros(l, device=self.device)
+            counts = torch.zeros(l, device=self.device)
+            
+            for _ in range(n_samples):
+                mask = torch.rand(grid_l, device=self.device) > 0.5
+                mask = F.interpolate(
+                    mask.unsqueeze(0).unsqueeze(0).float(),
+                    size=l,
+                    mode='nearest'
+                ).squeeze()
+                
+                x_masked = x.clone() * mask.unsqueeze(0).unsqueeze(0)
+                
+                with torch.no_grad():
+                    output = self._model_for_shap(x_masked)
+                    prob = F.softmax(output, dim=1)[0, target_class].item()
+                
+                contrib = orig_prob - prob
+                importance += mask * contrib
+                counts += mask
+            
+            importance = importance / (counts + 1e-8)
+            return importance.unsqueeze(0).unsqueeze(0).cpu()
+        
+        return None
+
+
+class SpectrogramRegionAnalysis:
+    """
+    Analyze which frequency bands and time segments are most important.
+    Provides human-interpretable insights about what the model focuses on.
+    """
+    def __init__(self, model, device='cpu', sr=16000, n_mels=128, hop_length=512):
+        self.model = model
+        self.device = device
+        self.sr = sr
+        self.n_mels = n_mels
+        self.hop_length = hop_length
+        
+        # Define frequency band names (approximate Hz ranges for mel scale)
+        self.freq_bands = {
+            'sub_bass': (0, 60),      # 0-60 Hz
+            'bass': (60, 250),         # 60-250 Hz
+            'low_mid': (250, 500),     # 250-500 Hz
+            'mid': (500, 2000),        # 500-2000 Hz
+            'high_mid': (2000, 4000),  # 2000-4000 Hz
+            'presence': (4000, 6000),  # 4000-6000 Hz
+            'brilliance': (6000, 8000) # 6000-8000+ Hz
+        }
+    
+    def analyze_importance_by_band(self, importance_map, return_raw=False):
+        """
+        Analyze which frequency bands are most important.
+        
+        Args:
+            importance_map: 2D importance map (freq x time)
+            return_raw: If True, return raw band scores
+            
+        Returns:
+            Dictionary with band names and their importance scores
+        """
+        if isinstance(importance_map, torch.Tensor):
+            importance_map = importance_map.numpy()
+        
+        # Handle batch/channel dimensions
+        while importance_map.ndim > 2:
+            importance_map = importance_map[0]
+        
+        h, w = importance_map.shape  # freq x time
+        
+        # Convert mel bins to approximate frequency bands
+        mel_to_hz = lambda m: 700 * (10**(m / 2595) - 1)
+        
+        band_scores = {}
+        for band_name, (low_hz, high_hz) in self.freq_bands.items():
+            # Approximate mel bin range
+            low_mel = int(low_hz / (self.sr / 2) * h)
+            high_mel = int(high_hz / (self.sr / 2) * h)
+            low_mel = max(0, min(low_mel, h-1))
+            high_mel = max(low_mel+1, min(high_mel, h))
+            
+            # Extract band importance
+            band_importance = importance_map[low_mel:high_mel, :]
+            band_scores[band_name] = float(np.mean(np.abs(band_importance)))
+        
+        # Normalize scores
+        total = sum(band_scores.values()) + 1e-8
+        normalized = {k: v / total * 100 for k, v in band_scores.items()}
+        
+        if return_raw:
+            return band_scores, normalized
+        return normalized
+    
+    def analyze_temporal_pattern(self, importance_map, n_segments=10):
+        """
+        Analyze temporal patterns in importance.
+        
+        Args:
+            importance_map: 2D importance map (freq x time)
+            n_segments: Number of time segments to analyze
+            
+        Returns:
+            Dictionary with temporal analysis results
+        """
+        if isinstance(importance_map, torch.Tensor):
+            importance_map = importance_map.numpy()
+        
+        while importance_map.ndim > 2:
+            importance_map = importance_map[0]
+        
+        h, w = importance_map.shape
+        segment_size = w // n_segments
+        
+        temporal_scores = []
+        for i in range(n_segments):
+            start = i * segment_size
+            end = start + segment_size if i < n_segments - 1 else w
+            segment_importance = importance_map[:, start:end]
+            temporal_scores.append(float(np.mean(np.abs(segment_importance))))
+        
+        # Find peak regions
+        peak_segment = int(np.argmax(temporal_scores))
+        
+        return {
+            'segment_scores': temporal_scores,
+            'peak_segment': peak_segment,
+            'peak_time_ratio': peak_segment / n_segments,
+            'temporal_variance': float(np.var(temporal_scores)),
+            'is_uniform': float(np.var(temporal_scores)) < 0.01
+        }
+    
+    def generate_report(self, importance_map, prediction, confidence):
+        """
+        Generate a human-readable analysis report.
+        
+        Args:
+            importance_map: 2D importance map
+            prediction: Model prediction (0=fake, 1=real)
+            confidence: Prediction confidence
+            
+        Returns:
+            String report
+        """
+        band_scores = self.analyze_importance_by_band(importance_map)
+        temporal = self.analyze_temporal_pattern(importance_map)
+        
+        # Sort bands by importance
+        sorted_bands = sorted(band_scores.items(), key=lambda x: x[1], reverse=True)
+        
+        pred_label = "REAL" if prediction == 1 else "FAKE"
+        
+        report = []
+        report.append("=" * 60)
+        report.append("AUDIO ANALYSIS REPORT")
+        report.append("=" * 60)
+        report.append(f"\nPrediction: {pred_label} (Confidence: {confidence:.1%})")
+        report.append("\n--- Frequency Band Importance ---")
+        
+        for band, score in sorted_bands:
+            bar = "█" * int(score / 5) + "░" * (20 - int(score / 5))
+            report.append(f"  {band:12s}: {bar} {score:.1f}%")
+        
+        report.append("\n--- Temporal Analysis ---")
+        if temporal['is_uniform']:
+            report.append("  Pattern: Uniform importance across time")
+        else:
+            peak_pct = temporal['peak_time_ratio'] * 100
+            if peak_pct < 33:
+                position = "beginning"
+            elif peak_pct < 66:
+                position = "middle"
+            else:
+                position = "end"
+            report.append(f"  Peak importance: {position} of audio ({peak_pct:.0f}%)")
+            report.append(f"  Temporal variance: {temporal['temporal_variance']:.4f}")
+        
+        report.append("\n--- Key Observations ---")
+        top_band = sorted_bands[0][0]
+        if top_band in ['sub_bass', 'bass']:
+            report.append("  • Model focuses on low-frequency content")
+            report.append("  • May indicate attention to voice fundamental frequency")
+        elif top_band in ['mid', 'low_mid']:
+            report.append("  • Model focuses on mid-frequency content")
+            report.append("  • Typical for voice formant analysis")
+        elif top_band in ['high_mid', 'presence', 'brilliance']:
+            report.append("  • Model focuses on high-frequency content")
+            report.append("  • May indicate attention to synthesis artifacts")
+        
+        report.append("=" * 60)
+        
+        return "\n".join(report)
+
+
+def visualize_shap_values(shap_values, input_spectrogram=None, save_path=None, title="SHAP Values"):
+    """
+    Visualize SHAP values as a heatmap.
+    
+    Args:
+        shap_values: SHAP values tensor
+        input_spectrogram: Original input for comparison
+        save_path: Optional path to save figure
+        title: Plot title
+    """
+    try:
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import TwoSlopeNorm
+        
+        if isinstance(shap_values, torch.Tensor):
+            shap_values = shap_values.numpy()
+        
+        # Handle batch/channel dimensions
+        while shap_values.ndim > 2:
+            shap_values = shap_values[0]
+        
+        # Handle 1D (raw audio)
+        if shap_values.ndim == 1:
+            shap_values = shap_values[None, :]
+        
+        fig, axes = plt.subplots(1, 2 if input_spectrogram is not None else 1, figsize=(14, 5))
+        
+        if input_spectrogram is not None:
+            if isinstance(input_spectrogram, torch.Tensor):
+                input_spectrogram = input_spectrogram.numpy()
+            while input_spectrogram.ndim > 2:
+                input_spectrogram = input_spectrogram[0]
+            if input_spectrogram.ndim == 1:
+                input_spectrogram = input_spectrogram[None, :]
+            
+            ax0 = axes[0] if hasattr(axes, '__iter__') else axes
+            im0 = ax0.imshow(input_spectrogram, aspect='auto', origin='lower', cmap='magma')
+            ax0.set_title('Input Spectrogram')
+            ax0.set_xlabel('Time')
+            ax0.set_ylabel('Frequency')
+            plt.colorbar(im0, ax=ax0, label='Magnitude')
+            
+            ax1 = axes[1]
+        else:
+            ax1 = axes if not hasattr(axes, '__iter__') else axes[0]
+        
+        # Use diverging colormap for SHAP (red=positive, blue=negative)
+        vmax = np.max(np.abs(shap_values))
+        if vmax > 0:
+            norm = TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax)
+        else:
+            norm = None
+        
+        im1 = ax1.imshow(shap_values, aspect='auto', origin='lower', cmap='RdBu_r', norm=norm)
+        ax1.set_title(title)
+        ax1.set_xlabel('Time')
+        ax1.set_ylabel('Frequency')
+        plt.colorbar(im1, ax=ax1, label='SHAP Value')
+        
+        plt.tight_layout()
+        
+        if save_path:
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            plt.close()
+        else:
+            plt.show()
+            
+    except ImportError:
+        print("matplotlib required for visualization")
+
+
+def visualize_band_importance(band_scores, save_path=None, title="Frequency Band Importance"):
+    """
+    Visualize frequency band importance as a bar chart.
+    
+    Args:
+        band_scores: Dictionary of band names to importance scores
+        save_path: Optional path to save figure
+        title: Plot title
+    """
+    try:
+        import matplotlib.pyplot as plt
+        
+        bands = list(band_scores.keys())
+        scores = list(band_scores.values())
+        
+        # Color by importance
+        colors = plt.cm.RdYlGn_r(np.array(scores) / max(scores))
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        bars = ax.barh(bands, scores, color=colors)
+        
+        ax.set_xlabel('Importance (%)')
+        ax.set_title(title)
+        ax.set_xlim(0, max(scores) * 1.1)
+        
+        # Add value labels
+        for bar, score in zip(bars, scores):
+            ax.text(bar.get_width() + 0.5, bar.get_y() + bar.get_height()/2,
+                   f'{score:.1f}%', va='center', fontsize=10)
         
         plt.tight_layout()
         
