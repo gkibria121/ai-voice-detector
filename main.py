@@ -29,9 +29,39 @@ from shutil import copy
 from typing import Dict, List, Union
 import shutil
 
+# Fix sympy compatibility issue with PyTorch (sympy 1.13+ changed sympy.printing structure)
+# This must be done BEFORE importing torch to avoid AttributeError in torch.utils._sympy
+def _fix_sympy_pytorch_compat():
+    """Patch sympy for PyTorch compatibility with sympy >= 1.13."""
+    try:
+        import sympy
+        import sympy.printing
+        import sympy.printing.str as sympy_str_printer
+        
+        # Ensure sympy.printing.StrPrinter is accessible
+        if not hasattr(sympy.printing, 'StrPrinter'):
+            sympy.printing.StrPrinter = sympy_str_printer.StrPrinter
+        
+        # Some versions need the printer module to be a proper attribute
+        if not hasattr(sympy, 'printing'):
+            sympy.printing = sympy.printing
+            
+    except (ImportError, AttributeError) as e:
+        # If this fails, torch may still work but torch.compile won't
+        pass
+
+_fix_sympy_pytorch_compat()
+
 import numpy as np
 import torch
 import torch.nn as nn
+
+# Disable torch dynamo/inductor to avoid sympy issues on incompatible environments
+try:
+    torch._dynamo.config.suppress_errors = True
+except:
+    pass
+
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -196,7 +226,7 @@ def main(args: argparse.Namespace) -> None:
         # Store the list of feature types for dataset extraction
         config["hetero_feature_types"] = hetero_feature_types
         config["feature_type"] = hetero_feature_types  # Use list for multimodal dataset
-        print(f"\n🔀 Heterogeneous Ensemble detected!")
+        print(f"\n[HETERO] Heterogeneous Ensemble detected!")
         print(f"   Per-model feature types: {[mconf.get('feature_type', 1) for mconf in model_config]}")
         print(f"   Unique features to extract: {hetero_feature_types}")
     
@@ -1027,7 +1057,7 @@ def get_model(model_config: Dict, device: torch.device, config: Dict = None):
             
             ensemble = HeterogeneousEnsembleModel(models, model_feature_types, hetero_feature_types).to(device)
             total_params = sum(p.numel() for p in ensemble.parameters())
-            print(f"\\n\ud83d\udd00 Heterogeneous Ensemble created:")
+            print(f"\n[HETERO] Heterogeneous Ensemble created:")
             print(f"   Models: {len(models)}")
             print(f"   Feature routing: {[(mconf.get('architecture'), mconf.get('feature_type', 1)) for mconf in model_config]}")
             print(f"   Total params: {total_params}")
@@ -1435,7 +1465,8 @@ def train_epoch(
             if use_amp:
                 with torch.amp.autocast('cuda', dtype=amp_dtype):
                     # Special handling for ensembles: compute per-model outputs
-                    if getattr(model, 'is_ensemble', False):
+                    # For heterogeneous ensembles, use forward() which handles feature routing
+                    if getattr(model, 'is_ensemble', False) and not getattr(model, 'is_heterogeneous', False):
                         outs = []
                         for m in model.models:
                             _, out_i = m(batch_x, Freq_aug=str_to_bool(config["freq_aug"]))
@@ -1462,7 +1493,8 @@ def train_epoch(
                 scaler.update()
             else:
                 # Non-AMP path
-                if getattr(model, 'is_ensemble', False):
+                # For heterogeneous ensembles, use forward() which handles feature routing
+                if getattr(model, 'is_ensemble', False) and not getattr(model, 'is_heterogeneous', False):
                     outs = []
                     for m in model.models:
                         _, out_i = m(batch_x, Freq_aug=str_to_bool(config["freq_aug"]))
