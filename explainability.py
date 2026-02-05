@@ -1016,11 +1016,18 @@ class TCAV:
             'harmonic_structure': self._generate_harmonic_concept,
             'spectral_flatness': self._generate_flatness_concept,
         }
+        self._retain_grad = False  # Flag for gradient computation mode
     
     def _register_hook(self):
         """Register forward hook to capture activations."""
         def hook_fn(module, input, output):
-            self.activations = output.detach()
+            if self._retain_grad:
+                # Keep gradient graph intact for TCAV score computation
+                self.activations = output
+                if output.requires_grad:
+                    output.retain_grad()
+            else:
+                self.activations = output.detach()
         
         self._hook_handle = self.target_layer.register_forward_hook(hook_fn)
     
@@ -1290,7 +1297,8 @@ class TCAV:
         Compute TCAV score for a single input.
         
         The TCAV score measures how sensitive the model's prediction is to the concept,
-        computed as the fraction of inputs where the directional derivative is positive.
+        computed as the directional derivative of the target class logit in the 
+        direction of the CAV (Concept Activation Vector).
         
         Args:
             input_tensor: Input to explain
@@ -1298,50 +1306,69 @@ class TCAV:
             target_class: Class to compute sensitivity for
             
         Returns:
-            TCAV sensitivity score
+            TCAV sensitivity score (directional derivative value)
         """
         self.model.eval()
-        input_tensor = input_tensor.to(self.device).requires_grad_(True)
         
-        # Forward pass
-        self.model.zero_grad()
-        _, output = self.model(input_tensor)
+        # Enable gradient retention mode for the hook
+        self._retain_grad = True
         
-        # Get target class logit
-        target_logit = output[0, target_class]
-        target_logit.backward()
-        
-        if self.activations is None:
-            return 0.0
-        
-        # Get gradient with respect to activations
-        # We need to compute gradient of output w.r.t. activations
-        # This requires re-computing with gradient enabled
-        
-        acts = self.activations.cpu().numpy()
-        if acts.ndim > 2:
-            acts = acts.reshape(acts.shape[0], -1)
-        
-        # Compute directional derivative
-        # For simplicity, we use finite differences
-        eps = 0.01
-        cav_tensor = torch.from_numpy(cav).float().to(self.device)
-        
-        # Reshape CAV to match activation shape if needed
-        if len(cav) != acts.shape[1]:
-            # Truncate or pad
-            if len(cav) > acts.shape[1]:
-                cav = cav[:acts.shape[1]]
+        try:
+            input_tensor = input_tensor.to(self.device).requires_grad_(True)
+            
+            # Forward pass with gradient tracking
+            self.model.zero_grad()
+            _, output = self.model(input_tensor)
+            
+            # Get target class logit
+            target_logit = output[0, target_class]
+            
+            if self.activations is None:
+                return 0.0
+            
+            # Compute gradient of target logit w.r.t. activations
+            grad_output = torch.autograd.grad(
+                target_logit, 
+                self.activations, 
+                retain_graph=True,
+                allow_unused=True
+            )[0]
+            
+            if grad_output is None:
+                # Fallback: try using .grad after backward
+                target_logit.backward(retain_graph=True)
+                if hasattr(self.activations, 'grad') and self.activations.grad is not None:
+                    grad_output = self.activations.grad
+                else:
+                    return 0.0
+            
+            # Flatten gradient
+            grad_flat = grad_output.detach().cpu().numpy().flatten()
+            
+            # Align CAV dimensions with gradient
+            if len(cav) != len(grad_flat):
+                min_len = min(len(cav), len(grad_flat))
+                cav_aligned = cav[:min_len]
+                grad_aligned = grad_flat[:min_len]
             else:
-                cav = np.pad(cav, (0, acts.shape[1] - len(cav)))
-        
-        # Approximate directional derivative
-        # Positive derivative means moving in CAV direction increases class probability
-        with torch.no_grad():
-            _, output_orig = self.model(input_tensor.detach())
-            prob_orig = F.softmax(output_orig, dim=1)[0, target_class].item()
-        
-        return prob_orig  # Simplified - full implementation would need gradient computation
+                cav_aligned = cav
+                grad_aligned = grad_flat
+            
+            # Compute directional derivative: dot product of gradient and CAV
+            # Positive value means the concept positively influences the prediction
+            directional_deriv = np.dot(grad_aligned, cav_aligned)
+            
+            # Normalize by the magnitudes to get a more interpretable score
+            grad_norm = np.linalg.norm(grad_aligned) + 1e-8
+            cav_norm = np.linalg.norm(cav_aligned) + 1e-8
+            normalized_score = directional_deriv / (grad_norm * cav_norm)
+            
+            # Return absolute sensitivity (magnitude of concept influence)
+            return float(np.abs(normalized_score))
+            
+        finally:
+            # Restore non-gradient mode
+            self._retain_grad = False
     
     def compute_tcav_scores_batch(self, inputs: torch.Tensor, cav: np.ndarray,
                                    target_class: int) -> float:
