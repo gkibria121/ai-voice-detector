@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 CLI tool for Explainable AI (XAI) analysis of the Voice Detector models.
-Supports Grad-CAM, SHAP, and frequency band analysis.
+Supports Grad-CAM, SHAP, TCAV, and frequency band analysis.
 """
 
 import argparse
@@ -26,7 +26,8 @@ importlib.reload(explainability)
 
 from explainability import (GradCAM, visualize_saliency, AudioSHAP, 
                             SpectrogramRegionAnalysis, visualize_shap_values,
-                            visualize_band_importance, SHAP_AVAILABLE)
+                            visualize_band_importance, SHAP_AVAILABLE,
+                            TCAV, visualize_tcav_results)
 
 def load_model(config_path: str, weights_path: str, device: torch.device):
     """Load model from config and weights."""
@@ -337,46 +338,165 @@ def run_shap(model, input_tensor, spectrogram_vis, base_name, output_dir, device
         print("  [!] SHAP not available. Install with: pip install shap")
         return
     
-    try:
-        # Get model prediction
+    # Check if this is an ensemble model
+    is_ensemble = hasattr(model, 'is_ensemble') and model.is_ensemble
+    
+    if is_ensemble:
+        # For ensemble models, run SHAP on each sub-model individually
+        print("  Ensemble detected - running SHAP analysis on each sub-model...")
+        
+        # Get ensemble prediction first
         model.eval()
         with torch.no_grad():
-            _, output = model(input_tensor)
-            probs = torch.softmax(output, dim=1)
-            pred_class = output.argmax(dim=1).item()
-            confidence = probs[0, pred_class].item()
+            _, ensemble_output = model(input_tensor)
+            ensemble_probs = torch.softmax(ensemble_output, dim=1)
+            ensemble_pred = ensemble_output.argmax(dim=1).item()
+            ensemble_conf = ensemble_probs[0, ensemble_pred].item()
         
-        current_target = target_class if target_class is not None else pred_class
-        pred_label = "REAL" if pred_class == 1 else "FAKE"
-        print(f"  Prediction: {pred_label} (confidence: {confidence:.1%})")
-        print(f"  Explaining class: {current_target}")
+        ensemble_label = "REAL" if ensemble_pred == 1 else "FAKE"
+        print(f"\n  Ensemble Overall Prediction: {ensemble_label} (Class {ensemble_pred})")
+        print(f"  Ensemble Confidence: {ensemble_conf*100:.2f}%")
         
-        # Create SHAP explainer
-        shap_explainer = AudioSHAP(model, device=device)
+        current_target = target_class if target_class is not None else ensemble_pred
         
-        # Compute SHAP values
-        print("  Computing SHAP values (this may take a moment)...")
-        shap_values = shap_explainer.compute_shap_values(input_tensor, target_class=current_target)
+        all_shap_values = []
+        all_confidences = []
         
-        if shap_values is not None:
+        for idx, submodel in enumerate(model.models):
+            arch_name = getattr(submodel, 'config_architecture', submodel.__class__.__name__)
+            variant = getattr(submodel, 'config_variant', None)
+            name_suffix = f"model{idx}_{arch_name}"
+            if variant:
+                name_suffix += f"_{variant}"
+            
+            print(f"\n  -- Processing {name_suffix} --")
+            
+            try:
+                # Get sub-model prediction
+                submodel.eval()
+                with torch.no_grad():
+                    _, sub_output = submodel(input_tensor)
+                    sub_probs = torch.softmax(sub_output, dim=1)
+                    sub_pred = sub_output.argmax(dim=1).item()
+                    sub_conf = sub_probs[0, sub_pred].item()
+                
+                sub_label = "REAL" if sub_pred == 1 else "FAKE"
+                print(f"     Prediction: {sub_label} (confidence: {sub_conf:.1%})")
+                
+                all_confidences.append(sub_conf)
+                
+                # Create SHAP explainer for this sub-model
+                shap_explainer = AudioSHAP(submodel, device=device)
+                
+                # Compute SHAP values
+                print(f"     Computing SHAP values...")
+                shap_values = shap_explainer.compute_shap_values(input_tensor, target_class=current_target)
+                
+                if shap_values is not None:
+                    all_shap_values.append(shap_values)
+                    vis_input = spectrogram_vis if spectrogram_vis is not None else input_tensor.detach().cpu().numpy()
+                    
+                    if save_plots:
+                        save_path = os.path.join(output_dir, f"{base_name}_{name_suffix}_shap.png")
+                        visualize_shap_values(shap_values, input_spectrogram=vis_input, save_path=save_path,
+                                             title=f"SHAP Values - {name_suffix} ({sub_label}, conf={sub_conf:.1%})")
+                        print(f"     ✓ Saved: {save_path}")
+                    
+                    if show_plots:
+                        print(f"     Displaying {name_suffix}...")
+                        visualize_shap_values(shap_values, input_spectrogram=vis_input, save_path=None,
+                                             title=f"SHAP Values - {name_suffix} ({sub_label}, conf={sub_conf:.1%})")
+                else:
+                    print(f"     [!] Could not compute SHAP values for {name_suffix}")
+                    all_shap_values.append(None)
+                    
+            except Exception as e:
+                print(f"     [X] SHAP failed for {name_suffix}: {e}")
+                all_shap_values.append(None)
+                all_confidences.append(0.0)
+        
+        # Generate composite SHAP visualizations
+        valid_shap = [s for s in all_shap_values if s is not None]
+        if valid_shap:
+            print("\n  -- Generating Composite SHAP Visualizations --")
             vis_input = spectrogram_vis if spectrogram_vis is not None else input_tensor.detach().cpu().numpy()
             
+            # Average SHAP values
+            avg_shap = torch.stack(valid_shap).mean(dim=0)
+            
             if save_plots:
-                save_path = os.path.join(output_dir, f"{base_name}_shap_values.png")
-                visualize_shap_values(shap_values, input_spectrogram=vis_input, save_path=save_path,
-                                     title=f"SHAP Values ({pred_label}, conf={confidence:.1%})")
-                print(f"  [OK] Saved: {save_path}")
+                save_path = os.path.join(output_dir, f"{base_name}_ensemble_average_shap.png")
+                visualize_shap_values(avg_shap, input_spectrogram=vis_input, save_path=save_path,
+                                     title=f"Average SHAP Values ({ensemble_label}, conf={ensemble_conf:.1%})")
+                print(f"  ✓ Saved Average: {save_path}")
             
             if show_plots:
-                visualize_shap_values(shap_values, input_spectrogram=vis_input, save_path=None,
-                                     title=f"SHAP Values ({pred_label}, conf={confidence:.1%})")
-        else:
-            print("  [!] Could not compute SHAP values")
+                visualize_shap_values(avg_shap, input_spectrogram=vis_input, save_path=None,
+                                     title=f"Average SHAP Values ({ensemble_label}, conf={ensemble_conf:.1%})")
             
-    except Exception as e:
-        print(f"  [X] SHAP analysis failed: {e}")
-        import traceback
-        traceback.print_exc()
+            # Weighted SHAP values by confidence
+            valid_indices = [i for i, s in enumerate(all_shap_values) if s is not None]
+            valid_confs = [all_confidences[i] for i in valid_indices]
+            
+            if sum(valid_confs) > 0:
+                weights = torch.tensor(valid_confs, device=device)
+                weights = weights / weights.sum()
+                
+                weighted_shap = torch.zeros_like(valid_shap[0])
+                for i, s in enumerate(valid_shap):
+                    weighted_shap += s.to(device) * weights[i]
+                
+                if save_plots:
+                    save_path = os.path.join(output_dir, f"{base_name}_ensemble_weighted_shap.png")
+                    visualize_shap_values(weighted_shap.cpu(), input_spectrogram=vis_input, save_path=save_path,
+                                         title=f"Weighted SHAP Values ({ensemble_label}, conf={ensemble_conf:.1%})")
+                    print(f"  ✓ Saved Weighted: {save_path}")
+                
+                if show_plots:
+                    visualize_shap_values(weighted_shap.cpu(), input_spectrogram=vis_input, save_path=None,
+                                         title=f"Weighted SHAP Values ({ensemble_label}, conf={ensemble_conf:.1%})")
+    else:
+        # Single model SHAP analysis (original logic)
+        try:
+            # Get model prediction
+            model.eval()
+            with torch.no_grad():
+                _, output = model(input_tensor)
+                probs = torch.softmax(output, dim=1)
+                pred_class = output.argmax(dim=1).item()
+                confidence = probs[0, pred_class].item()
+            
+            current_target = target_class if target_class is not None else pred_class
+            pred_label = "REAL" if pred_class == 1 else "FAKE"
+            print(f"  Prediction: {pred_label} (confidence: {confidence:.1%})")
+            print(f"  Explaining class: {current_target}")
+            
+            # Create SHAP explainer
+            shap_explainer = AudioSHAP(model, device=device)
+            
+            # Compute SHAP values
+            print("  Computing SHAP values (this may take a moment)...")
+            shap_values = shap_explainer.compute_shap_values(input_tensor, target_class=current_target)
+            
+            if shap_values is not None:
+                vis_input = spectrogram_vis if spectrogram_vis is not None else input_tensor.detach().cpu().numpy()
+                
+                if save_plots:
+                    save_path = os.path.join(output_dir, f"{base_name}_shap_values.png")
+                    visualize_shap_values(shap_values, input_spectrogram=vis_input, save_path=save_path,
+                                         title=f"SHAP Values ({pred_label}, conf={confidence:.1%})")
+                    print(f"  [OK] Saved: {save_path}")
+                
+                if show_plots:
+                    visualize_shap_values(shap_values, input_spectrogram=vis_input, save_path=None,
+                                         title=f"SHAP Values ({pred_label}, conf={confidence:.1%})")
+            else:
+                print("  [!] Could not compute SHAP values")
+                
+        except Exception as e:
+            print(f"  [X] SHAP analysis failed: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 def run_analysis(model, input_tensor, spectrogram_vis, base_name, output_dir, device, show_plots, save_plots):
@@ -439,6 +559,126 @@ def run_analysis(model, input_tensor, spectrogram_vis, base_name, output_dir, de
             
     except Exception as e:
         print(f"  [X] Analysis failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def run_tcav(model, input_tensor, spectrogram_vis, base_name, output_dir, device, target_class, show_plots, save_plots):
+    """Run TCAV (Testing with Concept Activation Vectors) analysis."""
+    print("\n[TCAV] Running Concept-Based Analysis...")
+    
+    try:
+        # Get model prediction
+        model.eval()
+        with torch.no_grad():
+            _, output = model(input_tensor)
+            probs = torch.softmax(output, dim=1)
+            pred_class = output.argmax(dim=1).item()
+            confidence = probs[0, pred_class].item()
+        
+        pred_label = "REAL" if pred_class == 1 else "FAKE"
+        current_target = target_class if target_class is not None else pred_class
+        
+        print(f"  Prediction: {pred_label} (confidence: {confidence:.1%})")
+        print(f"  Explaining class: {current_target} ({'REAL' if current_target == 1 else 'FAKE'})")
+        
+        # Find target layer for TCAV
+        target_layer = find_gradcam_target_layer(model)
+        
+        if target_layer is None:
+            print("  [!] Could not find suitable layer for TCAV")
+            return
+        
+        print(f"  Using layer: {target_layer.__class__.__name__}")
+        
+        # Create TCAV explainer
+        tcav = TCAV(model, target_layer, device=device)
+        
+        # Define concepts to test
+        concepts = [
+            'high_freq_artifacts',
+            'low_freq_energy', 
+            'temporal_discontinuity',
+            'noise_floor',
+            'harmonic_structure',
+            'spectral_flatness'
+        ]
+        
+        print(f"  Testing {len(concepts)} audio concepts...")
+        
+        # Run TCAV analysis
+        results = tcav.explain_with_concepts(
+            input_tensor, 
+            concepts=concepts,
+            n_samples=30,
+            target_class=current_target
+        )
+        
+        # Cleanup
+        tcav.cleanup()
+        
+        if results:
+            # Generate ranking
+            ranking = tcav.generate_concept_importance_ranking(results)
+            
+            print("\n  --- Concept Importance Ranking ---")
+            for concept, importance in ranking:
+                print(f"    {concept.replace('_', ' ').title()}: {importance:.3f}")
+            
+            # Print interpretation
+            print("\n  --- Interpretation ---")
+            if ranking:
+                top_concept = ranking[0][0]
+                interpretations = {
+                    'high_freq_artifacts': "Model focuses on high-frequency patterns, often associated with synthesis artifacts",
+                    'low_freq_energy': "Model attends to low-frequency content (fundamental frequency, bass)",
+                    'temporal_discontinuity': "Model is sensitive to temporal irregularities or glitches",
+                    'noise_floor': "Model considers background noise characteristics",
+                    'harmonic_structure': "Model analyzes harmonic patterns typical in natural speech",
+                    'spectral_flatness': "Model distinguishes between tonal and noise-like segments"
+                }
+                print(f"    Top concept: {top_concept.replace('_', ' ').title()}")
+                if top_concept in interpretations:
+                    print(f"    → {interpretations[top_concept]}")
+            
+            # Save results
+            if save_plots:
+                # Save visualization
+                viz_path = os.path.join(output_dir, f"{base_name}_tcav.png")
+                visualize_tcav_results(results, pred_label, save_path=viz_path,
+                                       title=f"TCAV Concept Analysis")
+                print(f"\n  ✓ Saved: {viz_path}")
+                
+                # Save detailed report
+                report_path = os.path.join(output_dir, f"{base_name}_tcav_report.txt")
+                with open(report_path, 'w') as f:
+                    f.write("=" * 60 + "\n")
+                    f.write("TCAV CONCEPT ANALYSIS REPORT\n")
+                    f.write("=" * 60 + "\n\n")
+                    f.write(f"Prediction: {pred_label} (Confidence: {confidence:.1%})\n")
+                    f.write(f"Target class explained: {current_target}\n\n")
+                    
+                    f.write("--- Concept Scores ---\n")
+                    for concept, data in results.items():
+                        f.write(f"\n{concept.replace('_', ' ').title()}:\n")
+                        f.write(f"  TCAV Score: {data['tcav_score']:.3f}\n")
+                        f.write(f"  CAV Accuracy: {data['classifier_accuracy']:.1%}\n")
+                        f.write(f"  Significant: {'Yes' if data['is_significant'] else 'No'}\n")
+                    
+                    f.write("\n--- Ranking ---\n")
+                    for i, (concept, importance) in enumerate(ranking, 1):
+                        f.write(f"{i}. {concept.replace('_', ' ').title()}: {importance:.3f}\n")
+                
+                print(f"  ✓ Saved: {report_path}")
+            
+            if show_plots:
+                visualize_tcav_results(results, pred_label, save_path=None,
+                                       title=f"TCAV Concept Analysis")
+        else:
+            print("  [!] No concept results generated")
+            
+    except Exception as e:
+        print(f"  [X] TCAV analysis failed: {e}")
         import traceback
         traceback.print_exc()
 
@@ -696,6 +936,9 @@ Examples:
   # Run multiple specific methods with display
   python explain.py --config model_config.json --audio_file sample.wav --model_path model.pth --method saliency smoothgrad --show
   
+  # Run TCAV concept-based analysis
+  python explain.py --config model_config.json --audio_file sample.wav --model_path model.pth --method tcav
+  
   # Display only (don't save files)
   python explain.py --config model_config.json --audio_file sample.wav --model_path model.pth --show --no-save
         """
@@ -705,9 +948,9 @@ Examples:
     parser.add_argument("--audio_file", required=True, help="Path to input audio file")
     parser.add_argument("--model_path", help="Path to model weights (.pth)")
     parser.add_argument("--method", nargs='+', 
-                        choices=["gradcam", "shap", "analysis", "all"], 
+                        choices=["gradcam", "shap", "tcav", "analysis", "all"], 
                         default=None,
-                        help="XAI method(s) to use: gradcam, shap, analysis, or all")
+                        help="XAI method(s) to use: gradcam, shap, tcav, analysis, or all")
     parser.add_argument("--output_dir", default="explained_outputs", help="Directory to save visualizations")
     parser.add_argument("--cpu", action="store_true", help="Force CPU usage")
     parser.add_argument("--target_class", type=int, default=None, 
@@ -759,7 +1002,7 @@ Examples:
     
     # Determine which methods to run
     if args.method is None or "all" in args.method:
-        methods = ["gradcam", "shap", "analysis"]
+        methods = ["gradcam", "shap", "tcav", "analysis"]
     else:
         methods = args.method 
     
@@ -782,6 +1025,9 @@ Examples:
                           args.output_dir, device, args.target_class, args.show, save_plots)
             elif method == "shap":
                 run_shap(model, input_tensor, spectrogram_vis, base_name,
+                        args.output_dir, device, args.target_class, args.show, save_plots)
+            elif method == "tcav":
+                run_tcav(model, input_tensor, spectrogram_vis, base_name,
                         args.output_dir, device, args.target_class, args.show, save_plots)
             elif method == "analysis":
                 run_analysis(model, input_tensor, spectrogram_vis, base_name,
