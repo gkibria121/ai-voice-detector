@@ -281,9 +281,12 @@ All configurations also include the master random seed value to enable exact rep
 
 Explainability is crucial for audio deepfake detection systems deployed in real-world applications such as forensic analysis, content moderation, and legal proceedings. Understanding _why_ a model classifies audio as genuine or synthetic builds trust, enables error analysis, and provides actionable insights for system improvement.
 
-**Key Objective:**
+**Key Objectives:**
 
-1. **Decision Transparency**: Reveal which acoustic regions influence classification using GradCAM.
+1. **Spatial Attribution**: Reveal which acoustic regions influence classification using Grad-CAM.
+2. **Concept-Level Understanding**: Identify which semantic audio concepts drive predictions using TCAV.
+3. **Model Comparison**: Analyze why certain architectures outperform others through explainability insights.
+4. **User Trust**: Provide interpretable evidence for non-technical stakeholders.
 
 ### 13.2 GradCAM for Audio Deepfake Detection
 
@@ -297,15 +300,16 @@ GradCAM (Gradient-weighted Class Activation Mapping) is used to visualize which 
 4. Apply a ReLU activation to obtain the final heatmap.
 5. Overlay the heatmap on the input spectrogram for visual interpretation.
 
-GradCAM provides interpretable visualizations that help users and researchers understand which parts of the audio signal contribute most to the classification decision, supporting transparency and trust in the system. 2. **Feature Attribution**: Identify discriminative spectro-temporal patterns 3. **Model Debugging**: Detect spurious correlations and dataset biases 4. **User Trust**: Provide interpretable evidence for non-technical stakeholders
+GradCAM provides interpretable visualizations that help users and researchers understand which parts of the audio signal contribute most to the classification decision, supporting transparency and trust in the system.
 
 ### 13.2 Implemented XAI Methods
 
-The system supports six complementary explainability methods, each providing different insights into model behavior:
+The system implements complementary explainability methods, each providing different insights into model behavior:
 
 | Method   | Type           | Description                                     |
 | -------- | -------------- | ----------------------------------------------- |
 | Grad-CAM | Gradient-based | Class activation mapping via gradient weighting |
+| TCAV     | Concept-based  | Testing with Concept Activation Vectors         |
 
 #### 13.2.1 Attention Extraction
 
@@ -319,7 +323,52 @@ $$L_{\text{Grad-CAM}}^c = \text{ReLU}\left(\sum_k \alpha_k^c A^k\right)$$
 
 where $\alpha_k^c = \frac{1}{Z} \sum_i \sum_j \frac{\partial y^c}{\partial A_{ij}^k}$ are importance weights.
 
+#### 13.2.3 TCAV (Testing with Concept Activation Vectors)
+
+TCAV provides concept-level explanations by measuring how much a high-level concept influences model predictions. Unlike gradient-based methods that highlight input regions, TCAV reveals _which semantic concepts_ drive classification decisions.
+
+**Concept Definitions for Audio Deepfake Detection:**
+
+| Concept | Description |
+|---------|-------------|
+| High Freq Artifacts | Synthesis artifacts common in fake audio (>4kHz) |
+| Low Freq Energy | Fundamental frequency patterns (~100-300 Hz) |
+| Temporal Discontinuity | Glitches or unnatural transitions |
+| Noise Floor | Background noise characteristics |
+| Harmonic Structure | Natural voice harmonic patterns |
+| Spectral Flatness | Tonal vs. noise-like characteristics |
+
+**Mathematical Formulation:**
+
+Given a concept $C$, TCAV trains a linear classifier (CAV) to separate concept examples from random examples in the model's activation space:
+
+$$v_C = \arg\min_v \sum_{x \in P \cup N} \mathcal{L}(v \cdot f_l(x), y_x)$$
+
+where $f_l(x)$ is the activation at layer $l$, $P$ is the set of concept examples, and $N$ is the set of random examples.
+
+The TCAV score measures directional sensitivity of class $c$ predictions to concept $C$:
+
+$$\text{TCAV}_{C,c} = \frac{|\{x \in X_c : S_{C,c}(x) > 0\}|}{|X_c|}$$
+
+where $S_{C,c}(x) = \nabla h_{l,c}(f_l(x)) \cdot v_C$ is the directional derivative.
+
+**Implementation Steps:**
+
+1. **Concept Dataset Creation**: Generate synthetic audio examples representing each concept (e.g., audio with high-frequency artifacts, audio with specific noise floor characteristics).
+2. **CAV Training**: Train binary linear classifiers to distinguish concept examples from random examples in the model's intermediate layer activations.
+3. **CAV Accuracy Validation**: Verify that the learned CAVs accurately capture the intended concepts (target: >90% accuracy).
+4. **Sensitivity Computation**: Calculate directional derivatives of class predictions with respect to each CAV.
+5. **TCAV Score Aggregation**: Compute the fraction of inputs for which moving toward a concept increases class probability.
+
+**Interpretation Guidelines:**
+
+- **High TCAV Score (>0.1)**: The concept strongly influences predictions for that class.
+- **CAV Accuracy (100%)**: The concept is well-separated in activation space, indicating reliable measurements.
+- **Differential Concept Usage**: Effective models use different concepts for detecting FAKE vs. REAL audio.
+
 ### 13.3 Visualization
+
+**Grad-CAM Visualizations:**
 
 GradCAM visualizations are presented as heatmaps overlaid on input spectrograms:
 
@@ -327,7 +376,21 @@ GradCAM visualizations are presented as heatmaps overlaid on input spectrograms:
 - **Temporal axis**: Shows which time segments in the audio were most relevant for the decision.
 - **Frequency axis**: Highlights frequency bands that contributed to the classification.
 
-This approach provides interpretable evidence for model decisions, helping users understand which parts of the audio signal were most important for the deepfake detection outcome.
+**TCAV Visualizations:**
+
+TCAV results are presented as bar charts showing concept importance:
+
+- **TCAV Score**: Displayed per concept, indicating the fraction of inputs where the concept positively influences the target class.
+- **CAV Accuracy**: Shown alongside each score to validate concept reliability.
+- **Comparative Analysis**: Side-by-side comparison of concept importance for FAKE vs. REAL classes reveals discriminative strategies.
+
+**Combined Interpretation:**
+
+Grad-CAM and TCAV provide complementary insights:
+- Grad-CAM answers: "Where in the spectrogram does the model focus?"
+- TCAV answers: "What acoustic concepts drive the prediction?"
+
+This dual approach provides comprehensive interpretable evidence for model decisions, helping users understand both the spatial regions and semantic concepts that contribute to deepfake detection outcomes.
 
 ## 14. Conclusion
 
