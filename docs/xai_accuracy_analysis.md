@@ -274,8 +274,7 @@ Despite lower accuracy, the ensemble provides a **safety net**:
 |--------|---------|
 | **XAI Methods** | Grad-CAM, TCAV |
 | **Target Layer** | Conv2d (1408 channels, last conv layer) |
-| **TCAV Samples** | 30 synthetic concept examples per concept |
-| **CAV Classifier** | Logistic Regression with 80/20 train/test split |
+| **TCAV Samples** | 30 synthetic concept examples per concept | 
 | **Dataset** | FakeOrReal V3 |
 | **Evaluation Set** | 1,088 samples |
 
